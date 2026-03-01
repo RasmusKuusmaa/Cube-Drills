@@ -6,13 +6,18 @@
       <input id="length" type="number" v-model.number="seqLength" min="1" />
       <button @click="generateSequence">Generate</button>
 
-      <div v-if="sequence">
-        <p>{{ sequence }}</p>
+      <div v-if="sequence && res === null">
+        <div v-if="!seqHidden">
 
-        <div>
+
+          <p>{{ sequence }}</p>
+
+
+          <button @click="seqHidden = true">Hide Sequence</button>
+        </div>
+        <div v-if="seqHidden">
           <P> Input the sequence</P>
           <input type="text" v-model="userInput" placeholder="Enter the sequence" :disabled="res !== null" />
-
           <button @click="checkSequence">Check</button>
         </div>
       </div>
@@ -36,6 +41,7 @@ const seqLength = ref<number>(20);
 const sequence = ref<string>("");
 const userInput = ref<string>("");
 const res = ref<boolean | null>(null);
+const seqHidden = ref<boolean>(false);
 
 function generateSequence(): void {
   const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -52,6 +58,7 @@ function generateSequence(): void {
 
 function checkSequence(): void {
   res.value = userInput.value.toUpperCase() === sequence.value.toUpperCase();
+  seqHidden.value = false;
 }
 
 
