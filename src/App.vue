@@ -1,4 +1,3 @@
-
 <template>
   <div>
     <h1>3Bld memo trainer</h1>
@@ -9,31 +8,54 @@
 
       <div v-if="sequence">
         <p>{{ sequence }}</p>
+
+        <div>
+          <P> Input the sequence</P>
+          <input type="text" v-model="userInput" placeholder="Enter the sequence" />
+
+          <button @click="checkSequence">Check</button>
+        </div>
       </div>
+
+      <p v-if="res === true">Correct</p>
+      <p v-else-if="res !== null">False
+
+        Entered: {{ userInput }}
+
+        Correct: {{ sequence }}
+      </p>
     </div>
   </div>
 
 </template>
 
 <script setup lang="ts">
-  import {ref} from "vue";
+import { ref } from "vue";
 
-  const seqLength = ref<number>(20);
-  const sequence =  ref<string>("");
-  
-  function generateSequence(): void {
-    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    let seq = "";
-    
-    for (let i = 0;i < seqLength.value;i++){
-      seq += letters[Math.floor(Math.random() * letters.length)]
-    }
+const seqLength = ref<number>(20);
+const sequence = ref<string>("");
+const userInput = ref<string>("");
+const res = ref<boolean | null>(null);
 
-    sequence.value =  seq;
+function generateSequence(): void {
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  let seq = "";
+
+  for (let i = 0; i < seqLength.value; i++) {
+    seq += letters[Math.floor(Math.random() * letters.length)]
   }
-  
 
-  
+  sequence.value = seq;
+  res.value = null;
+  userInput.value = "";
+}
+
+function checkSequence(): void {
+  res.value = userInput.value.toUpperCase() === sequence.value.toUpperCase();
+}
+
+
+
 </script>
 
 <style scoped></style>
