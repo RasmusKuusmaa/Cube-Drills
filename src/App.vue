@@ -1,47 +1,39 @@
-<script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
-import TheWelcome from './components/TheWelcome.vue'
-</script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="./assets/logo.svg" width="125" height="125" />
+  <div>
+    <h1>3Bld memo trainer</h1>
+    <div>
+      <label for="length">Number of letters:</label>
+      <input id="length" type="number" v-model.number="seqLength" min="1" />
+      <button @click="generateSequence">Generate</button>
 
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
+      <div v-if="sequence">
+        <p>{{ sequence }}</p>
+      </div>
     </div>
-  </header>
+  </div>
 
-  <main>
-    <TheWelcome />
-  </main>
 </template>
 
-<style scoped>
-header {
-  line-height: 1.5;
-}
+<script setup lang="ts">
+  import {ref} from "vue";
 
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
-}
+  const seqLength = ref<number>(20);
+  const sequence =  ref<string>("");
+  
+  function generateSequence(): void {
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    let seq = "";
+    
+    for (let i = 0;i < seqLength.value;i++){
+      seq += letters[Math.floor(Math.random() * letters.length)]
+    }
 
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
+    sequence.value =  seq;
   }
+  
 
-  .logo {
-    margin: 0 2rem 0 0;
-  }
+  
+</script>
 
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
-}
-</style>
+<style scoped></style>
