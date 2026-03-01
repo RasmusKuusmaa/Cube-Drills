@@ -3,7 +3,7 @@
     <h1>3Bld memo trainer</h1>
     <div>
       <label for="length">Number of letters:</label>
-      <input id="length" type="number" v-model.number="seqLength" min="1" />
+      <input id="length" type="number" v-model.number="seqLength" min="1"/>
       <button @click="generateSequence">Generate</button>
 
       <div v-if="sequence">
@@ -11,7 +11,7 @@
 
         <div>
           <P> Input the sequence</P>
-          <input type="text" v-model="userInput" placeholder="Enter the sequence" />
+          <input type="text" v-model="userInput" placeholder="Enter the sequence" :disabled="res !== null"/>
 
           <button @click="checkSequence">Check</button>
         </div>
@@ -19,9 +19,9 @@
 
       <p v-if="res === true">Correct</p>
       <p v-else-if="res !== null">False
-
+    
         Entered: {{ userInput }}
-
+    
         Correct: {{ sequence }}
       </p>
     </div>
