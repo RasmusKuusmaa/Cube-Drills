@@ -10,9 +10,6 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 class AuthController extends Controller
 {
     public function register(Request $request) {
-        if ($request->wantsJson()) {
-            return response()->json(['message' => 'It works!']);
-        }
         $data = $request->validate([
             'name' => 'required|string',
             'email' => 'required|email|unique:users',
