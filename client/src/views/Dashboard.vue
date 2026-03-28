@@ -1,80 +1,63 @@
 <template>
-  <div>
-    <h1>3Bld memo trainer</h1>
+  <div class="dashboard">
+    <TopBar />
 
-    <h2 v-if="authStore.user">
-      Welcome, {{ authStore.user.name }}
-    </h2>
+    <div class="content">
+    
 
-    <button @click="logout">Logout</button>
-
-    <div>
-      <label>Number of letters:</label>
-      <input type="number" v-model.number="seqLength" min="1" />
-      <button @click="generateSequence">Generate</button>
-
-      <div v-if="sequence && res === null">
-        <div v-if="!seqHidden">
-          <p>{{ sequence }}</p>
-          <button @click="seqHidden = true">Hide Sequence</button>
-        </div>
-
-        <div v-else>
-          <p>Input the sequence</p>
-          <input v-model="userInput" />
-          <button @click="checkSequence">Check</button>
-        </div>
+      <div class="tab-content">
+        <component :is="currentTabComponent" />
       </div>
 
-      <p v-if="res === true">Correct</p>
-      <p v-else-if="res !== null">
-        False <br />
-        Entered: {{ userInput }} <br />
-        Correct: {{ sequence }}
-      </p>
+         <RightTabBar 
+        :tabs="tabs" 
+        :currentTab="currentTab" 
+        @switch-tab="currentTab = $event"
+      />
+
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { useAuthStore } from '../stores/auth';
-import { useRouter } from 'vue-router';
+import { ref, computed } from 'vue';
+import TopBar from '../components/TopBar.vue';
+import RightTabBar from '../components/RightTabBar.vue';
+import DrillsTab from '../components/DrillsTab.vue';
+import TimerTab from '../components/TimerTab.vue';
 
-const authStore = useAuthStore();
-const router = useRouter();
+const tabs = [
+  { id: 'DrillsTab', label: 'Drills' },
+  { id: 'TimerTab', label: 'Timer' },
+];
 
-const seqLength = ref<number>(20);
-const sequence = ref<string>('');
-const userInput = ref<string>('');
-const res = ref<boolean | null>(null);
-const seqHidden = ref<boolean>(false);
+const currentTab = ref('DrillsTab');
 
-const logout = () => {
-  authStore.logout();
-  router.push('/login');
-};
-
-onMounted(() => {
-  authStore.fetchUser();
-});
-
-function generateSequence() {
-  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  let seq = '';
-
-  for (let i = 0; i < seqLength.value; i++) {
-    seq += letters[Math.floor(Math.random() * letters.length)];
+const currentTabComponent = computed(() => {
+  switch (currentTab.value) {
+    case 'TimerTab':
+      return TimerTab;
+    case 'DrillsTab':
+    default:
+      return DrillsTab;
   }
-
-  sequence.value = seq;
-  res.value = null;
-  userInput.value = '';
-}
-
-function checkSequence() {
-  res.value =
-    userInput.value.toUpperCase() === sequence.value.toUpperCase();
-  seqHidden.value = false;
-}
+});
 </script>
+
+<style scoped>
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.content {
+  display: flex;
+  flex: 1;
+}
+
+.tab-content {
+  flex: 1;
+  padding: 16px;
+}
+</style>
