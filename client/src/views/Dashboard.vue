@@ -27,8 +27,8 @@ import DrillsTab from '../components/DrillsTab.vue';
 import TimerTab from '../components/TimerTab.vue';
 
 const tabs = [
-  { id: 'DrillsTab', label: 'Drills' },
   { id: 'TimerTab', label: 'Timer' },
+  { id: 'DrillsTab', label: 'Drills' },
 ];
 
 const currentTab = ref('DrillsTab');
