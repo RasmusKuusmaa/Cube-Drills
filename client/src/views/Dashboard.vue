@@ -31,7 +31,7 @@ const tabs = [
   { id: 'DrillsTab', label: 'Drills' },
 ];
 
-const currentTab = ref('DrillsTab');
+const currentTab = ref('TimerTab');
 
 const currentTabComponent = computed(() => {
   switch (currentTab.value) {
