@@ -6,7 +6,7 @@
       <div class="cube-selection-container">3x3</div>
 
       <div class="scrable-container">
-        l' f' b2 u2 d rf u2 f' b2 u2 d rf u2
+        {{ scramble }}
       </div>
 
       <div class="timer-area">
@@ -25,8 +25,9 @@
 
 
 <script setup lang="ts">
+import { GeneratedIdentifierFlags } from 'typescript';
 import { ref, onMounted, onUnmounted } from 'vue';
-
+// timer
 const timer = ref(0);
 let interval: number | null = null;
 
@@ -40,7 +41,6 @@ const displayTime = ref('00:00');
 const timerClass = ref('');
 const previousTime = ref('0.00');
 
-
 const startHold = () => {
   if (holding.value) return;
 
@@ -49,6 +49,8 @@ const startHold = () => {
     isRunning.value = false;
     previousTime.value = displayTime.value;
     timerClass.value = '';
+
+    scramble.value = generateScramble();
     return;
   }
 
@@ -100,14 +102,14 @@ const startTimer = () => {
       displayTime.value = `${sec
         .toString()
         .padStart(2, '0')}.${Math.floor(ms / 10)
-        .toString()
-        .padStart(2, '0')}`;
+          .toString()
+          .padStart(2, '0')}`;
     } else {
       displayTime.value = `${min}:${sec
         .toString()
         .padStart(2, '0')}.${Math.floor(ms / 10)
-        .toString()
-        .padStart(2, '0')}`;
+          .toString()
+          .padStart(2, '0')}`;
     }
   }, 10);
 };
@@ -135,7 +137,37 @@ const handleKeyUp = (e: KeyboardEvent) => {
   }
 };
 
+
+// scramble
+
+const scramble = ref("something broke, try restarting the timer to generate a new scramble");
+const moves = { "3x3": ['U', 'D', 'L', 'R', 'F', 'B'] };
+const modifiers = { "3x3": ['', "'", '2'] };
+
+const generateScramble = (size = "3x3", length = 20) => {
+  let res: string[] = [];
+  let lastMove = '';
+  if (size == "3x3") {
+    for (let i = 0; i < length; i++) {
+      let move = moves[size][Math.floor(Math.random() * moves[size].length)];
+
+      while (move === lastMove) {
+        move = moves[size][Math.floor(Math.random() * moves[size].length)];
+      }
+
+      lastMove = move;
+      const modifier = modifiers[size][Math.floor(Math.random() * modifiers[size].length)];
+
+      res.push(move + modifier);
+    }
+
+    return res.join(' ');
+  }
+}
+
 onMounted(() => {
+  scramble.value = generateScramble();
+
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
 });
@@ -144,6 +176,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('keyup', handleKeyUp);
 });
+
 </script>
 
 
