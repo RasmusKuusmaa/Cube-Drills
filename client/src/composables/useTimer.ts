@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 
-export function useTimer() {
+export function useTimer(options?: { onFinish?: (time: number) => void }) {
+
     const timer = ref(0)
     const displayTime = ref('00:00')
     const isRunning = ref(false)
@@ -37,6 +38,10 @@ export function useTimer() {
         }
         isRunning.value = false
         timerClass.value = ''
+
+        if (options?.onFinish) {
+            options.onFinish(timer.value);
+        }
     }
 
     const startHold = (onReady: () => void, onStop?: () => void) => {

@@ -1,6 +1,10 @@
 <template>
   <div class="timer-container">
-    <div class="solves">Solves list</div>
+    <div class="solves">
+      <div v-for="solve in solves" :key="solve.id">
+        {{ solve.time / 1000 }}
+      </div>
+    </div>
     <div class="main">
       <div class="cube-selection-container">
         <select v-model="selectedCube" @change="updateCube(selectedCube)">
@@ -25,21 +29,36 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useTimer } from '../composables/useTimer'
 import { useScramble } from '../composables/useScramble'
+import { useSolves } from '@/composables/usesolves'
+
+
 
 const cubes = ['2x2', '3x3', '4x4', '5x5', 'Megaminx', 'Pyraminx', 'Skewb', 'Square-1', 'Clock']
 const storedCube = localStorage.getItem('selectedCube') ?? '3x3'
 
-const  {displayTime, timerClass, startTimer, startHold, releaseHold} = useTimer()
+
+const { solves, addSolve } = useSolves();
+const { displayTime, timerClass, startTimer, startHold, releaseHold } = useTimer(
+  {
+    onFinish: (finalTime) => {
+      addSolve({
+        time: finalTime,
+        scramble: scramble.value,
+        cube: selectedCube.value,
+        penalty: "OK"
+      })
+
+      generateScramble(selectedCube.value);
+    }
+  }
+)
 const { scramble, selectedCube, updateCube, generateScramble } = useScramble(storedCube)
 
 const handleKeyDown = (e: KeyboardEvent) => {
   if (e.code === 'Space' && !e.repeat) {
     e.preventDefault()
     startHold(
-      () => {},
-      () => {
-        generateScramble(selectedCube.value)
-      }
+      () => { }
     )
   }
 }
