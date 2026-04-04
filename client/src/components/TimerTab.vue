@@ -1,14 +1,27 @@
 <template>
   <div class="timer-container">
+
+
     <div class="solves">
+      <select v-model="currentSessionId">
+        <option v-for="s in sessions" :key="s.id" :value="s.id">
+          {{ s.name }}
+        </option>
+      </select>
+      <button @click="handleNewSession">+ New Session</button>
+
+
       <div v-for="solve in solves" :key="solve.id">
-        {{ solve.time / 1000 }}
+        {{ (solve.time / 1000).toFixed(2) }}
       </div>
     </div>
+
     <div class="main">
       <div class="cube-selection-container">
         <select v-model="selectedCube" @change="updateCube(selectedCube)">
-          <option v-for="cube in cubes" :key="cube" :value="cube">{{ cube }}</option>
+          <option v-for="cube in cubes" :key="cube" :value="cube">
+            {{ cube }}
+          </option>
         </select>
       </div>
 
@@ -29,37 +42,42 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useTimer } from '../composables/useTimer'
 import { useScramble } from '../composables/useScramble'
-import { useSolves } from '@/composables/usesolves'
-
-
+import { useSessions } from '@/composables/useSessions'
 
 const cubes = ['2x2', '3x3', '4x4', '5x5', 'Megaminx', 'Pyraminx', 'Skewb', 'Square-1', 'Clock']
 const storedCube = localStorage.getItem('selectedCube') ?? '3x3'
 
+const {
+  sessions,
+  currentSessionId,
+  solves,
+  addSolve,
+  createSession
+} = useSessions()
 
-const { solves, addSolve } = useSolves();
-const { displayTime, timerClass, startTimer, startHold, releaseHold } = useTimer(
-  {
-    onFinish: (finalTime) => {
-      addSolve({
-        time: finalTime,
-        scramble: scramble.value,
-        cube: selectedCube.value,
-        penalty: "OK"
-      })
-
-      generateScramble(selectedCube.value);
-    }
-  }
-)
 const { scramble, selectedCube, updateCube, generateScramble } = useScramble(storedCube)
+
+const { displayTime, timerClass, startTimer, startHold, releaseHold } = useTimer({
+  onFinish: (finalTime) => {
+    addSolve({
+      time: finalTime,
+      scramble: scramble.value,
+      penalty: 'OK'
+    })
+
+    generateScramble(selectedCube.value)
+  }
+})
+
+const handleNewSession = () => {
+  const name = `Session ${sessions.value.length + 1}`
+  createSession(name)
+}
 
 const handleKeyDown = (e: KeyboardEvent) => {
   if (e.code === 'Space' && !e.repeat) {
     e.preventDefault()
-    startHold(
-      () => { }
-    )
+    startHold(() => { })
   }
 }
 
@@ -71,6 +89,10 @@ const handleKeyUp = (e: KeyboardEvent) => {
 }
 
 onMounted(() => {
+  if (sessions.value.length === 0) {
+    createSession('Session 1')
+  }
+
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('keyup', handleKeyUp)
 })
@@ -78,7 +100,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('keyup', handleKeyUp)
-}) 
+})
 </script>
 
 <style scoped>
