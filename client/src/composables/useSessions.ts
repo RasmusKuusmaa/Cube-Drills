@@ -47,7 +47,8 @@ const load = async () => {
     }
 
     const savedId = localStorage.getItem('currentSessionId')
-    currentSessionId.value = savedId || sessions.value[0]?.id || null
+    const savedSessionExists = savedId && sessions.value.some(s => s.id === savedId)
+    currentSessionId.value = savedSessionExists ? savedId : sessions.value[0]?.id || null
 
     if (sessions.value.length === 0) {
         const defaultName = getUniqueSessionName('Session 1')
@@ -69,6 +70,12 @@ const createSession = async (name: string, cube: string | null = null) => {
 watch(currentSessionId, (id) => {
     if (id) {
         localStorage.setItem('currentSessionId', id)
+    }
+})
+
+watch(sessions, (sessionsList) => {
+    if (currentSessionId.value && !sessionsList.some(s => s.id === currentSessionId.value)) {
+        currentSessionId.value = sessionsList[0]?.id || null
     }
 })
 
