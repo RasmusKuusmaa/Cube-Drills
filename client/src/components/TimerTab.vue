@@ -3,7 +3,7 @@
     <div class="solves">
       <div class="custom-select">
         <div class="selected" @click="dropdownOpen = !dropdownOpen">
-          {{ sessions.find(s => s.id === currentSessionId)?.name || 'Select Session' }}
+          {{sessions.find(s => s.id === currentSessionId)?.name || 'Select Session'}}
         </div>
         <div v-if="dropdownOpen" class="options">
           <div v-for="session in sessions" :key="session.id" class="option" @click="selectSession(session.id)">
@@ -40,8 +40,8 @@
           <span class="solve-ao5">ao5</span>
           <span class="solve-ao12">ao12</span>
         </div>
-        <div v-for="(solve, index) in solves" :key="solve.id" class="solve-item">
-          <span class="solve-number">      {{solves.length - index }}.</span>
+        <div v-for="(solve, index) in solves" :key="solve.id" class="solve-item" @click="openSolveModal(solve)">
+          <span class="solve-number"> {{ solves.length - index }}.</span>
           <span class="solve-time">{{ (solve.time / 1000).toFixed(2) }}</span>
           <span class="solve-ao5">{{ reversedAo5[index] }}</span>
           <span class="solve-ao12">{{ reversedAo12[index] }}</span>
@@ -49,21 +49,12 @@
       </div>
     </div>
 
-    <NewSessionModal
-      v-if="!editingSession"
-      :show="showModal"
-      @confirm="handleConfirm"
-      @close="closeModal"
-    />
+    <NewSessionModal v-if="!editingSession" :show="showModal" @confirm="handleConfirm" @close="closeModal" />
 
-    <EditSessionModal
-      v-if="editingSession"
-      :show="showModal"
-      :initial-name="editingSession?.name || ''"
-      @confirm="handleConfirm"
-      @delete="handleDeleteModal"
-      @close="closeModal"
-    />
+    <EditSessionModal v-if="editingSession" :show="showModal" :initial-name="editingSession?.name || ''"
+      @confirm="handleConfirm" @delete="handleDeleteModal" @close="closeModal" />
+
+    <SolveModal :show="showSolveModal" :solve="selectedSolve" @close="closeSolveModal" />
 
     <div class="main">
       <div class="cube-selection-container">
@@ -79,7 +70,7 @@
       <div class="timer-area">
         <div class="timer" :class="timerClass">{{ displayTime }}</div>
         <div class="averages">
-          <span>ao5:  {{ao5}}</span>
+          <span>ao5: {{ ao5 }}</span>
           <span>ao12: {{ ao12 }}</span>
         </div>
       </div>
@@ -95,10 +86,19 @@ import { useSessions } from '@/composables/useSessions'
 import { useAverages } from '@/composables/useAverages'
 import NewSessionModal from './NewSessionModal.vue'
 import EditSessionModal from './EditSessionModal.vue'
+import SolveModal from './SolveModal.vue'
 
 type Session = {
   id: string
   name: string
+}
+
+type Solve = {
+  id: string
+  time: number
+  scramble: string
+  date: string
+  penalty?: 'OK' | '+2' | 'DNF'
 }
 
 const cubes = ['2x2', '3x3', '4x4', '5x5', 'Megaminx', 'Pyraminx', 'Skewb', 'Square-1', 'Clock']
@@ -189,6 +189,21 @@ const handleNewSession = () => {
   editingSession.value = null
   showModal.value = true
 }
+
+const selectedSolve = ref<Solve | null>(null);
+const showSolveModal = ref(false);
+
+const openSolveModal = (solve: Solve) => {
+  selectedSolve.value = solve;
+  showSolveModal.value = true;
+}
+
+const closeSolveModal = () => {
+  selectedSolve.value = null;
+  showSolveModal.value = false;
+}
+
+
 
 const handleKeyDown = (e: KeyboardEvent) => {
   if (e.code === 'Space' && !e.repeat) {
@@ -339,6 +354,7 @@ onUnmounted(() => {
   align-items: center;
   font-family: monospace;
   font-size: 14px;
+  cursor: pointer;
 }
 
 .solve-item.solve-header {
