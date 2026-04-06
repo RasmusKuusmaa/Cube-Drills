@@ -1,11 +1,17 @@
 <template>
   <div class="timer-container">
     <div class="solves">
-      <select v-model="currentSessionId">
-        <option v-for="s in sessions" :key="s.id" :value="s.id">
-          {{ s.name }}
-        </option>
-      </select>
+      <div class="custom-select">
+        <div class="selected" @click="dropdownOpen = !dropdownOpen">
+          {{ sessions.find(s => s.id === currentSessionId)?.name || 'Select Session' }}
+        </div>
+        <div v-if="dropdownOpen" class="options">
+          <div v-for="session in sessions" :key="session.id" class="option" @click="selectSession(session.id)">
+            <span>{{ session.name }}</span>
+            <button @click.stop="editSession(session)">Edit</button>
+          </div>
+        </div>
+      </div>
       <button @click="handleNewSession">+ New Session</button>
 
       <div v-for="solve in solves" :key="solve.id">
@@ -14,8 +20,18 @@
     </div>
 
     <NewSessionModal
+      v-if="!editingSession"
       :show="showModal"
       @confirm="handleConfirm"
+      @close="closeModal"
+    />
+
+    <EditSessionModal
+      v-if="editingSession"
+      :show="showModal"
+      :initial-name="editingSession?.name || ''"
+      @confirm="handleConfirm"
+      @delete="handleDeleteModal"
       @close="closeModal"
     />
 
@@ -47,6 +63,12 @@ import { useTimer } from '../composables/useTimer'
 import { useScramble } from '../composables/useScramble'
 import { useSessions } from '@/composables/useSessions'
 import NewSessionModal from './NewSessionModal.vue'
+import EditSessionModal from './EditSessionModal.vue'
+
+type Session = {
+  id: string
+  name: string
+}
 
 const cubes = ['2x2', '3x3', '4x4', '5x5', 'Megaminx', 'Pyraminx', 'Skewb', 'Square-1', 'Clock']
 const storedCube = localStorage.getItem('selectedCube') ?? '3x3'
@@ -56,7 +78,9 @@ const {
   currentSessionId,
   solves,
   addSolve,
-  createSession
+  createSession,
+  updateSession,
+  deleteSession
 } = useSessions()
 
 const { scramble, selectedCube, updateCube, generateScramble } = useScramble(storedCube)
@@ -74,15 +98,36 @@ const { displayTime, timerClass, startTimer, startHold, releaseHold } = useTimer
 })
 
 const showModal = ref(false)
+const editingSession = ref<Session | null>(null)
+const dropdownOpen = ref(false)
 
-const handleNewSession = () => {
+const selectSession = (id: string) => {
+  currentSessionId.value = id
+  dropdownOpen.value = false
+}
+
+const editSession = (session: Session) => {
+  editingSession.value = session
   showModal.value = true
+}
+
+const handleDeleteModal = async () => {
+  if (editingSession.value && confirm(`Delete session "${editingSession.value.name}"? This will also delete all solves in this session.`)) {
+    await deleteSession(editingSession.value.id)
+    showModal.value = false
+    editingSession.value = null
+  }
 }
 
 const handleConfirm = async (name: string) => {
   if (name) {
-    await createSession(name)
+    if (editingSession.value) {
+      await updateSession(editingSession.value.id, name)
+    } else {
+      await createSession(name)
+    }
     showModal.value = false
+    editingSession.value = null
   }
 }
 
@@ -125,6 +170,56 @@ onUnmounted(() => {
 .solves {
   border-right: 2px solid black;
   padding: 10px;
+}
+
+.custom-select {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.selected {
+  padding: 8px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+  background: white;
+  position: relative;
+}
+
+.selected::after {
+  content: '▼';
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  border: 1px solid #ccc;
+  background: white;
+  z-index: 10;
+}
+
+.option {
+  padding: 8px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.option:hover {
+  background: #f0f0f0;
+}
+
+.option button {
+  margin-left: 5px;
+  padding: 2px 5px;
+  font-size: 12px;
 }
 
 .main {

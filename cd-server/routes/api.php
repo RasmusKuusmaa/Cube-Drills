@@ -14,5 +14,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('me', [AuthController::class, 'me']);
 
     Route::apiResource('sessions', SessionController::class)->only(['index', 'store']);
+    Route::put('sessions/{session}', [SessionController::class, 'update']);
+    Route::delete('sessions/{session}', [SessionController::class, 'destroy']);
     Route::post('sessions/{session}/solves', [SolveController::class, 'store']);
 });

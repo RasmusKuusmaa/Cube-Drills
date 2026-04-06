@@ -120,12 +120,30 @@ export function useSessions() {
         }
     }
 
+    const updateSession = async (id: string, name: string) => {
+        await api.put(`/sessions/${id}`, { name })
+        const session = sessions.value.find(s => s.id === id)
+        if (session) {
+            session.name = name
+        }
+    }
+
+    const deleteSession = async (id: string) => {
+        await api.delete(`/sessions/${id}`)
+        sessions.value = sessions.value.filter(s => s.id !== id)
+        if (currentSessionId.value === id) {
+            currentSessionId.value = sessions.value[0]?.id || null
+        }
+    }
+
     return {
         sessions,
         currentSession,
         currentSessionId,
         solves,
         createSession,
+        updateSession,
+        deleteSession,
         switchSession,
         addSolve,
     }
