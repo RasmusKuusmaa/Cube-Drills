@@ -1,7 +1,5 @@
 <template>
   <div class="timer-container">
-
-
     <div class="solves">
       <select v-model="currentSessionId">
         <option v-for="s in sessions" :key="s.id" :value="s.id">
@@ -10,11 +8,16 @@
       </select>
       <button @click="handleNewSession">+ New Session</button>
 
-
       <div v-for="solve in solves" :key="solve.id">
         {{ (solve.time / 1000).toFixed(2) }}
       </div>
     </div>
+
+    <NewSessionModal
+      :show="showModal"
+      @confirm="handleConfirm"
+      @close="closeModal"
+    />
 
     <div class="main">
       <div class="cube-selection-container">
@@ -39,10 +42,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useTimer } from '../composables/useTimer'
 import { useScramble } from '../composables/useScramble'
 import { useSessions } from '@/composables/useSessions'
+import NewSessionModal from './NewSessionModal.vue'
 
 const cubes = ['2x2', '3x3', '4x4', '5x5', 'Megaminx', 'Pyraminx', 'Skewb', 'Square-1', 'Clock']
 const storedCube = localStorage.getItem('selectedCube') ?? '3x3'
@@ -69,9 +73,21 @@ const { displayTime, timerClass, startTimer, startHold, releaseHold } = useTimer
   }
 })
 
-const handleNewSession = async () => {
-  const name = `Session ${sessions.value.length + 1}`
-  await createSession(name)
+const showModal = ref(false)
+
+const handleNewSession = () => {
+  showModal.value = true
+}
+
+const handleConfirm = async (name: string) => {
+  if (name) {
+    await createSession(name)
+    showModal.value = false
+  }
+}
+
+const closeModal = () => {
+  showModal.value = false
 }
 
 const handleKeyDown = (e: KeyboardEvent) => {
