@@ -1,4 +1,5 @@
 import { ref, computed, watch } from 'vue'
+import api from '@/api/api'
 
 type Solve = {
     id: string
@@ -16,36 +17,60 @@ type Session = {
     solves: Solve[]
 }
 
-const STORAGE_KEY = 'sessions'
-
 const sessions = ref<Session[]>([])
 const currentSessionId = ref<string | null>(null)
 
 let initialized = false
 
-const load = () => {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    sessions.value = raw ? JSON.parse(raw) : []
+const getUniqueSessionName = (baseName: string) => {
+    const existingNames = new Set(sessions.value.map(s => s.name))
+    if (!existingNames.has(baseName)) {
+        return baseName
+    }
+
+    let counter = 2
+    let candidate = `${baseName} ${counter}`
+    while (existingNames.has(candidate)) {
+        counter += 1
+        candidate = `${baseName} ${counter}`
+    }
+
+    return candidate
+}
+
+const load = async () => {
+    try {
+        const response = await api.get('/sessions')
+        sessions.value = response.data
+    } catch {
+        sessions.value = []
+    }
 
     const savedId = localStorage.getItem('currentSessionId')
     currentSessionId.value = savedId || sessions.value[0]?.id || null
+
+    if (sessions.value.length === 0) {
+        const defaultName = getUniqueSessionName('Session 1')
+        await createSession(defaultName)
+    }
 }
 
-watch(
-    sessions,
-    (val) => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(val))
-    },
-    { deep: true }
-)
+const createSession = async (name: string, cube: string | null = null) => {
+    const uniqueName = getUniqueSessionName(name)
+    const response = await api.post('/sessions', { name: uniqueName, cube })
+    const session = response.data as Session
+
+    sessions.value.unshift({ ...session, solves: session.solves ?? [] })
+    currentSessionId.value = session.id
+
+    return session
+}
 
 watch(currentSessionId, (id) => {
     if (id) {
         localStorage.setItem('currentSessionId', id)
     }
 })
-
-const generateId = () => crypto.randomUUID()
 
 export function useSessions() {
     if (!initialized) {
@@ -59,40 +84,33 @@ export function useSessions() {
 
     const solves = computed(() => currentSession.value?.solves || [])
 
-    const createSession = (name: string, cube: string | null = null) => {
-        const session: Session = {
-            id: generateId(),
-            name,
-            cube,
-            createdAt: new Date().toISOString(),
-            solves: []
-        }
-
-        sessions.value.unshift(session)
-        currentSessionId.value = session.id
-    }
-
     const switchSession = (id: string) => {
         currentSessionId.value = id
     }
 
-    const addSolve = (solveData: Omit<Solve, 'id' | 'date'>) => {
+    const addSolve = async (solveData: Omit<Solve, 'id' | 'date'>) => {
         if (!currentSession.value) return
 
-        const solve: Solve = {
-            id: generateId(),
+        const tempSolve: Solve = {
+            id: `temp-${crypto.randomUUID()}`,
             date: new Date().toISOString(),
-            ...solveData
+            ...solveData,
         }
 
-        currentSession.value.solves.unshift(solve)
-    }
+        currentSession.value.solves.unshift(tempSolve)
 
-    const deleteSolve = (id: string) => {
-        if (!currentSession.value) return
-
-        currentSession.value.solves =
-            currentSession.value.solves.filter(s => s.id !== id)
+        try {
+            const response = await api.post(`/sessions/${currentSession.value.id}/solves`, solveData)
+            const savedSolve = response.data as Solve
+            const index = currentSession.value.solves.findIndex(s => s.id === tempSolve.id)
+            if (index !== -1) {
+                currentSession.value.solves[index] = savedSolve
+            }
+            return savedSolve
+        } catch (error) {
+            currentSession.value.solves = currentSession.value.solves.filter(s => s.id !== tempSolve.id)
+            throw error
+        }
     }
 
     return {
@@ -103,6 +121,5 @@ export function useSessions() {
         createSession,
         switchSession,
         addSolve,
-        deleteSolve
     }
 }

@@ -6,6 +6,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Tymon\JWTAuth\Contracts\JWTSubject;
+use App\Models\Session;
 
 class User extends Authenticatable implements JWTSubject
 {
@@ -24,5 +25,10 @@ class User extends Authenticatable implements JWTSubject
 
     public function getJWTCustomClaims() {
         return [];
+    }
+
+    public function sessions()
+    {
+        return $this->hasMany(Session::class);
     }
 }

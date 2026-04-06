@@ -2,10 +2,24 @@ import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
 import { createPinia } from 'pinia';
+import { useAuthStore } from './stores/auth';
 
-const app = createApp(App);
+async function bootstrap() {
+  const app = createApp(App);
+  const pinia = createPinia();
 
-app.use(createPinia());
-app.use(router);
+  app.use(pinia);
+  app.use(router);
 
-app.mount('#app');
+  const authStore = useAuthStore();
+  if (localStorage.getItem('token')) {
+    await authStore.fetchUser();
+    if (!authStore.user) {
+      router.push('/login');
+    }
+  }
+
+  app.mount('#app');
+}
+
+bootstrap();

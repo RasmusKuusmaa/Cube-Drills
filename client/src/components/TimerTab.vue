@@ -69,9 +69,9 @@ const { displayTime, timerClass, startTimer, startHold, releaseHold } = useTimer
   }
 })
 
-const handleNewSession = () => {
+const handleNewSession = async () => {
   const name = `Session ${sessions.value.length + 1}`
-  createSession(name)
+  await createSession(name)
 }
 
 const handleKeyDown = (e: KeyboardEvent) => {
@@ -89,10 +89,6 @@ const handleKeyUp = (e: KeyboardEvent) => {
 }
 
 onMounted(() => {
-  if (sessions.value.length === 0) {
-    createSession('Session 1')
-  }
-
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('keyup', handleKeyUp)
 })
