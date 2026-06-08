@@ -39,12 +39,14 @@
           <span class="solve-time">Time</span>
           <span class="solve-ao5">ao5</span>
           <span class="solve-ao12">ao12</span>
+          <span class="solve-note"></span>
         </div>
         <div v-for="(solve, index) in solves" :key="solve.id" class="solve-item" @click="openSolveModal(solve)">
           <span class="solve-number"> {{ solves.length - index }}.</span>
           <span class="solve-time" :class="{ dnf: solve.penalty === 'DNF' }">{{ formatSolve(solve) }}</span>
           <span class="solve-ao5">{{ reversedAo5[index] }}</span>
           <span class="solve-ao12">{{ reversedAo12[index] }}</span>
+          <span class="solve-note" :title="solve.comment || ''">{{ solve.comment ? '💬' : '' }}</span>
         </div>
       </div>
     </div>
@@ -360,7 +362,7 @@ onUnmounted(() => {
 
 .solve-item {
   display: grid;
-  grid-template-columns: 30px 80px 60px 60px;
+  grid-template-columns: 30px 80px 60px 60px 16px;
   gap: 8px;
   padding: 4px 8px;
   border-bottom: 1px solid #eee;
@@ -398,6 +400,12 @@ onUnmounted(() => {
   text-align: right;
   color: #888;
   font-size: 12px;
+}
+
+.solve-note {
+  text-align: center;
+  font-size: 10px;
+  line-height: 1;
 }
 
 .main {

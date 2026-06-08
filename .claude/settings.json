@@ -16,7 +16,9 @@
       "Bash(ls -d venv .venv env)",
       "Bash(python -c \"import pyflakes\")",
       "Bash(python -m py_compile app/routers/solves.py app/models.py app/schemas.py)",
-      "Bash(./.venv/Scripts/python.exe -c \"from app.main import app; print\\('routes:', [\\(r.methods, r.path\\) for r in app.routes if '/solves' in r.path]\\)\")"
+      "Bash(./.venv/Scripts/python.exe -c \"from app.main import app; print\\('routes:', [\\(r.methods, r.path\\) for r in app.routes if '/solves' in r.path]\\)\")",
+      "Bash(./.venv/Scripts/python.exe -c ' *)",
+      "Bash(./.venv/Scripts/python.exe -m uvicorn app.main:app --port 8011 --no-access-log)"
     ]
   }
 }
