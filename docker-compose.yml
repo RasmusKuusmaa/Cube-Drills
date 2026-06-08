@@ -1,15 +1,12 @@
 services:
-  laravel:
-    build: ./cd-server
+  api:
+    build: ./server
     ports:
       - "8000:8000"
     volumes:
-      - ./cd-server:/app
+      - ./server:/app
     environment:
-      - APP_ENV=local
-      - APP_KEY=${APP_KEY:-base64:your-app-key-here}
-    depends_on:
-      - db
+      - DATABASE_URL=sqlite:///./database.sqlite
 
   vue:
     build: ./client
@@ -17,18 +14,6 @@ services:
       - "5173:5173"
     volumes:
       - ./client:/app
+      - /app/node_modules
     environment:
       - NODE_ENV=development
-
-  db:
-    image: mariadb:10.6
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-cubeDrills}
-      MYSQL_USER: ${MYSQL_USER:-user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-password}
-    volumes:
-      - db_data:/var/lib/mysql
-
-volumes:
-  db_data:

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/c/Users/4j534/Desktop/Cube-Drills/client/**)",
+      "PowerShell($py = \\(Get-Command python -ErrorAction SilentlyContinue\\); if \\($py\\) { python --version } else { \"no python\" }; $py3 = \\(Get-Command py -ErrorAction SilentlyContinue\\); if \\($py3\\) { py --version } else { \"no py launcher\" })",
+      "Bash(python -c ' *)",
+      "Bash(grep -v \"//\")",
+      "Bash(mkdir -p server/app/routers)",
+      "Bash(cp cd-server/database/database.sqlite server/database.sqlite)",
+      "Read(//c/c/Users/4j534/Desktop/Cube-Drills/**)",
+      "Read(//c/c/Users/4j534/Desktop/Cube-Drills/server/**)",
+      "Bash(./.venv/Scripts/python.exe -m uvicorn app.main:app --port 8000)"
+    ]
+  }
+}

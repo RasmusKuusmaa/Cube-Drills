@@ -1,22 +1,31 @@
-# running baackend
-``` bash
-docker build -t laravel-app .\cd-server
-docker run -p 8000:8000 -v ${PWD}\cd-server:/app laravel-app
-```
+# Cube Drills
 
-Note: For development, ensure your `.env` file has `DB_CONNECTION=sqlite` to avoid needing a separate database service. If you prefer MariaDB, run a local MariaDB instance or use Docker Compose for the full stack.
+A Rubik's cube practice timer. Vue 3 frontend + FastAPI backend (SQLite).
 
-### running frontend
+## Running the backend
 ```bash
-docker build -t vue-app .\client
-docker run -p 5173:5173 -v ${PWD}\client:/app vue-app
+cd server
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+# source .venv/bin/activate    # macOS / Linux
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
 ```
 
+The API serves on http://localhost:8000 (routes under `/api`, docs at `/docs`).
+See [server/README.md](server/README.md) for configuration and endpoints.
+
+## Running the frontend
+```bash
+cd client
+npm install
+npm run dev
+```
 
 - Backend: http://localhost:8000
 - Frontend: http://localhost:5173
 
-# Running in Production
+## Running the full stack with Docker
 ```bash
 docker-compose up --build
 ```
