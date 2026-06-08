@@ -39,4 +39,5 @@ class SolveCreateIn(BaseModel):
 
 
 class SolveUpdateIn(BaseModel):
-    penalty: Penalty
+    penalty: Penalty | None = None
+    comment: str | None = None

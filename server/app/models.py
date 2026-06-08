@@ -91,6 +91,7 @@ class Solve(Base):
     time: Mapped[int] = mapped_column(Integer)
     scramble: Mapped[str] = mapped_column(Text)
     penalty: Mapped[str] = mapped_column(String, default="OK")
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     solved_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(nullable=True)
@@ -105,6 +106,7 @@ class Solve(Base):
             "time": self.time,
             "scramble": self.scramble,
             "penalty": self.penalty,
+            "comment": self.comment,
             "solved_at": _laravel_datetime(self.solved_at),
             "date": _iso8601(self.solved_at),
         }

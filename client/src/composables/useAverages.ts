@@ -1,15 +1,13 @@
 import { computed, type ComputedRef } from 'vue'
+import { effectiveTime, formatMs, formatSolve, type Penalty } from '@/utils/solves'
 
 type Solve = {
     id: string
     time: number
     scramble: string
     date: string
-    penalty?: 'OK' | '+2' | 'DNF'
-}
-
-const formatTime = (time: number): string => {
-    return (time / 1000).toFixed(2)
+    penalty?: Penalty
+    comment?: string | null
 }
 
 const calculateAverage = (times: number[], removeCount: number = 0): number | null => {
@@ -29,12 +27,10 @@ const calculateMean = (times: number[]): number | null => {
 }
 
 export function useAverages(solves: ComputedRef<Solve[]>) {
-        const solveTimes = computed(() => solves.value.map(s => s.time))
+    const solveTimes = computed(() => solves.value.map(effectiveTime))
     const chronologicalTimes = computed(() => [...solveTimes.value].reverse())
 
-    const currentTime = computed(() => {
-        return solveTimes.value[0] ?? null
-    })
+    const currentSolve = computed(() => solves.value[0] ?? null)
 
     const bestTime = computed(() => {
         if (solveTimes.value.length === 0) return null
@@ -102,17 +98,17 @@ export function useAverages(solves: ComputedRef<Solve[]>) {
     })
 
     return {
-        currentTime: computed(() => currentTime.value ? formatTime(currentTime.value) : '--'),
-        bestTime: computed(() => bestTime.value ? formatTime(bestTime.value) : '--'),
-        mo3: computed(() => mo3.value ? formatTime(mo3.value) : '--'),
-        ao5: computed(() => ao5.value ? formatTime(ao5.value) : '--'),
-        ao12: computed(() => ao12.value ? formatTime(ao12.value) : '--'),
-        ao100: computed(() => ao100.value ? formatTime(ao100.value) : '--'),
-        bestMo3: computed(() => bestMo3.value ? formatTime(bestMo3.value) : '--'),
-        bestAo5: computed(() => bestAo5.value ? formatTime(bestAo5.value) : '--'),
-        bestAo12: computed(() => bestAo12.value ? formatTime(bestAo12.value) : '--'),
-        bestAo100: computed(() => bestAo100.value ? formatTime(bestAo100.value) : '--'),
-        rollingAo5Chrono: computed(() => rollingAo5Chrono.value.map(avg => avg ? formatTime(avg) : '--')),
-        rollingAo12Chrono: computed(() => rollingAo12Chrono.value.map(avg => avg ? formatTime(avg) : '--'))
+        currentTime: computed(() => currentSolve.value ? formatSolve(currentSolve.value) : '--'),
+        bestTime: computed(() => formatMs(bestTime.value)),
+        mo3: computed(() => formatMs(mo3.value)),
+        ao5: computed(() => formatMs(ao5.value)),
+        ao12: computed(() => formatMs(ao12.value)),
+        ao100: computed(() => formatMs(ao100.value)),
+        bestMo3: computed(() => formatMs(bestMo3.value)),
+        bestAo5: computed(() => formatMs(bestAo5.value)),
+        bestAo12: computed(() => formatMs(bestAo12.value)),
+        bestAo100: computed(() => formatMs(bestAo100.value)),
+        rollingAo5Chrono: computed(() => rollingAo5Chrono.value.map(formatMs)),
+        rollingAo12Chrono: computed(() => rollingAo12Chrono.value.map(formatMs))
     }
 }

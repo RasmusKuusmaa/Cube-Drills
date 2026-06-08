@@ -4,32 +4,97 @@
             <h3>Solve Details</h3>
 
             <div v-if="solve">
-                <p>Time: {{ (solve.time / 1000).toFixed(2) }}</p>
+                <p>Time: {{ formatSolve(solve) }}</p>
                 <p>Scramble: {{ solve.scramble }}</p>
                 <p>Date: {{ new Date(solve.date).toLocaleString() }}</p>
-                <p>Penalty  {{ solve.penalty }}</p>
+
+                <div class="field">
+                    <label>Penalty</label>
+                    <div class="penalty-buttons">
+                        <button v-for="option in penalties" :key="option" type="button"
+                            :class="{ active: penalty === option }" @click="penalty = option">
+                            {{ option }}
+                        </button>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="solve-comment">Comment</label>
+                    <textarea id="solve-comment" v-model="comment" rows="3"
+                        placeholder="Add a comment..."></textarea>
+                </div>
+
+                <div class="actions">
+                    <button class="delete" type="button" @click="onDelete">Delete</button>
+                    <div class="actions-right">
+                        <button type="button" @click="close">Cancel</button>
+                        <button class="save" type="button" :disabled="!dirty" @click="onSave">Save</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    </template> 
+</template>
 
 <script setup lang="ts">
+import { ref, watch, computed } from 'vue'
+import { formatSolve, type Penalty } from '@/utils/solves'
+
 type Solve = {
     id: string
     time: number
     scramble: string
     date: string
-    penalty?: 'OK' | '+2' | 'DNF'
+    penalty?: Penalty
+    comment?: string | null
 }
-defineProps<{
+
+const props = defineProps<{
     show: boolean;
-    solve:Solve | null;
-    
+    solve: Solve | null;
 }>();
 
-const emit = defineEmits(['close'])
+const emit = defineEmits<{
+    close: []
+    update: [id: string, data: { penalty: Penalty; comment: string | null }]
+    delete: [id: string]
+}>()
+
+const penalties: Penalty[] = ['OK', '+2', 'DNF']
+
+const penalty = ref<Penalty>('OK')
+const comment = ref('')
+
+watch(() => props.solve, (solve) => {
+    penalty.value = solve?.penalty ?? 'OK'
+    comment.value = solve?.comment ?? ''
+}, { immediate: true })
+
+const dirty = computed(() => {
+    if (!props.solve) return false
+    const originalComment = props.solve.comment ?? ''
+    const originalPenalty = props.solve.penalty ?? 'OK'
+    return penalty.value !== originalPenalty || comment.value !== originalComment
+})
 
 const close = () => emit('close');
+
+const onSave = () => {
+    if (!props.solve) return
+    emit('update', props.solve.id, {
+        penalty: penalty.value,
+        comment: comment.value.trim() === '' ? null : comment.value.trim(),
+    })
+    emit('close')
+}
+
+const onDelete = () => {
+    if (!props.solve) return
+    if (confirm('Delete this solve?')) {
+        emit('delete', props.solve.id)
+        emit('close')
+    }
+}
 </script>
 
 <style scoped>
@@ -39,7 +104,7 @@ const close = () => emit('close');
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0, 0, 0, 0.5);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -49,5 +114,85 @@ const close = () => emit('close');
     background: white;
     padding: 20px;
     border-radius: 10px;
+    width: 360px;
+    max-width: 90vw;
+}
+
+.field {
+    margin: 14px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.field label {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.penalty-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.penalty-buttons button {
+    flex: 1;
+    padding: 6px 0;
+    border: 1px solid #ccc;
+    background: white;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.penalty-buttons button.active {
+    background: #2563eb;
+    color: white;
+    border-color: #2563eb;
+}
+
+textarea {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-family: inherit;
+}
+
+.actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 18px;
+}
+
+.actions-right {
+    display: flex;
+    gap: 8px;
+}
+
+.actions button {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    background: white;
+    cursor: pointer;
+}
+
+.actions button.delete {
+    color: #dc2626;
+    border-color: #dc2626;
+}
+
+.actions button.save {
+    background: #2563eb;
+    color: white;
+    border-color: #2563eb;
+}
+
+.actions button.save:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 </style>

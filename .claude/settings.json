@@ -9,7 +9,14 @@
       "Bash(cp cd-server/database/database.sqlite server/database.sqlite)",
       "Read(//c/c/Users/4j534/Desktop/Cube-Drills/**)",
       "Read(//c/c/Users/4j534/Desktop/Cube-Drills/server/**)",
-      "Bash(./.venv/Scripts/python.exe -m uvicorn app.main:app --port 8000)"
+      "Bash(./.venv/Scripts/python.exe -m uvicorn app.main:app --port 8000)",
+      "Bash(python -c \"import sqlite3; c=sqlite3.connect\\('database.sqlite'\\); cols=[r[1] for r in c.execute\\('PRAGMA table_info\\(solves\\)'\\)]; print\\('before:', cols\\); \\(c.execute\\('ALTER TABLE solves ADD COLUMN comment TEXT'\\) if 'comment' not in cols else None\\); c.commit\\(\\); print\\('after:', [r[1] for r in c.execute\\('PRAGMA table_info\\(solves\\)'\\)]\\); c.close\\(\\)\")",
+      "Bash(npm run *)",
+      "Bash(python -c \"from app.main import app; from app.routers import solves; print\\('ok', [r.path for r in app.routes if '/solves' in r.path]\\)\")",
+      "Bash(ls -d venv .venv env)",
+      "Bash(python -c \"import pyflakes\")",
+      "Bash(python -m py_compile app/routers/solves.py app/models.py app/schemas.py)",
+      "Bash(./.venv/Scripts/python.exe -c \"from app.main import app; print\\('routes:', [\\(r.methods, r.path\\) for r in app.routes if '/solves' in r.path]\\)\")"
     ]
   }
 }

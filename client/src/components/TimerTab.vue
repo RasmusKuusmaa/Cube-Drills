@@ -42,7 +42,7 @@
         </div>
         <div v-for="(solve, index) in solves" :key="solve.id" class="solve-item" @click="openSolveModal(solve)">
           <span class="solve-number"> {{ solves.length - index }}.</span>
-          <span class="solve-time">{{ (solve.time / 1000).toFixed(2) }}</span>
+          <span class="solve-time" :class="{ dnf: solve.penalty === 'DNF' }">{{ formatSolve(solve) }}</span>
           <span class="solve-ao5">{{ reversedAo5[index] }}</span>
           <span class="solve-ao12">{{ reversedAo12[index] }}</span>
         </div>
@@ -54,7 +54,8 @@
     <EditSessionModal v-if="editingSession" :show="showModal" :initial-name="editingSession?.name || ''"
       @confirm="handleConfirm" @delete="handleDeleteModal" @close="closeModal" />
 
-    <SolveModal :show="showSolveModal" :solve="selectedSolve" @close="closeSolveModal" />
+    <SolveModal :show="showSolveModal" :solve="selectedSolve" @close="closeSolveModal"
+      @update="handleUpdateSolve" @delete="handleDeleteSolve" />
 
     <div class="main">
       <div class="cube-selection-container">
@@ -87,6 +88,7 @@ import { useAverages } from '@/composables/useAverages'
 import NewSessionModal from './NewSessionModal.vue'
 import EditSessionModal from './EditSessionModal.vue'
 import SolveModal from './SolveModal.vue'
+import { formatSolve, type Penalty } from '@/utils/solves'
 
 type Session = {
   id: string
@@ -98,7 +100,8 @@ type Solve = {
   time: number
   scramble: string
   date: string
-  penalty?: 'OK' | '+2' | 'DNF'
+  penalty?: Penalty
+  comment?: string | null
 }
 
 const cubes = ['2x2', '3x3', '4x4', '5x5', 'Megaminx', 'Pyraminx', 'Skewb', 'Square-1', 'Clock']
@@ -109,6 +112,8 @@ const {
   currentSessionId,
   solves,
   addSolve,
+  updateSolve,
+  deleteSolve,
   createSession,
   updateSession,
   deleteSession
@@ -201,6 +206,14 @@ const openSolveModal = (solve: Solve) => {
 const closeSolveModal = () => {
   selectedSolve.value = null;
   showSolveModal.value = false;
+}
+
+const handleUpdateSolve = async (id: string, data: { penalty: 'OK' | '+2' | 'DNF'; comment: string | null }) => {
+  await updateSolve(id, data)
+}
+
+const handleDeleteSolve = async (id: string) => {
+  await deleteSolve(id)
 }
 
 
@@ -374,6 +387,10 @@ onUnmounted(() => {
 .solve-time {
   text-align: right;
   font-weight: bold;
+}
+
+.solve-time.dnf {
+  color: #dc2626;
 }
 
 .solve-ao5,

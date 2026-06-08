@@ -7,6 +7,7 @@ type Solve = {
     scramble: string
     date: string
     penalty?: 'OK' | '+2' | 'DNF'
+    comment?: string | null
 }
 
 type Session = {
@@ -120,6 +121,47 @@ export function useSessions() {
         }
     }
 
+    const updateSolve = async (id: string, data: { penalty?: 'OK' | '+2' | 'DNF'; comment?: string | null }) => {
+        if (!currentSession.value) return
+
+        const solve = currentSession.value.solves.find(s => s.id === id)
+        if (!solve) return
+
+        const previous = { penalty: solve.penalty, comment: solve.comment }
+        Object.assign(solve, data)
+
+        try {
+            const response = await api.patch(`/solves/${id}`, data)
+            const savedSolve = response.data as Solve
+            const index = currentSession.value.solves.findIndex(s => s.id === id)
+            if (index !== -1) {
+                currentSession.value.solves[index] = savedSolve
+            }
+            return savedSolve
+        } catch (error) {
+            Object.assign(solve, previous)
+            throw error
+        }
+    }
+
+    const deleteSolve = async (id: string) => {
+        if (!currentSession.value) return
+
+        const index = currentSession.value.solves.findIndex(s => s.id === id)
+        if (index === -1) return
+
+        const [removed] = currentSession.value.solves.splice(index, 1)
+
+        try {
+            await api.delete(`/solves/${id}`)
+        } catch (error) {
+            if (removed) {
+                currentSession.value.solves.splice(index, 0, removed)
+            }
+            throw error
+        }
+    }
+
     const updateSession = async (id: string, name: string) => {
         await api.put(`/sessions/${id}`, { name })
         const session = sessions.value.find(s => s.id === id)
@@ -146,5 +188,7 @@ export function useSessions() {
         deleteSession,
         switchSession,
         addSolve,
+        updateSolve,
+        deleteSolve,
     }
 }

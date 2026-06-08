@@ -56,7 +56,28 @@ def update(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     _authorize_session(solve.session, current_user)
 
-    solve.penalty = payload.penalty
+    fields = payload.model_fields_set
+    if "penalty" in fields and payload.penalty is not None:
+        solve.penalty = payload.penalty
+    if "comment" in fields:
+        solve.comment = payload.comment
+
     db.commit()
     db.refresh(solve)
     return solve.to_dict()
+
+
+@router.delete("/solves/{solve_id}")
+def destroy(
+    solve_id: int,
+    current_user: User = Depends(get_current_user),
+    db: DBSession = Depends(get_db),
+):
+    solve = db.get(Solve, solve_id)
+    if solve is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    _authorize_session(solve.session, current_user)
+
+    db.delete(solve)
+    db.commit()
+    return {"message": "Solve deleted"}
