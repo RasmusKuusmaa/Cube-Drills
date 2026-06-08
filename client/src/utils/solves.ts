@@ -25,3 +25,20 @@ export const formatSolve = (solve: SolveLike): string => {
     const base = (solve.time / 1000).toFixed(2)
     return solve.penalty === '+2' ? `${base} +2` : base
 }
+
+// Human-readable duration for long spans, e.g. 1h 23m 45s or 12m 03s.
+export const formatDuration = (ms: number | null): string => {
+    if (ms === null || !Number.isFinite(ms)) return '--'
+    const totalSeconds = Math.floor(ms / 1000)
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+
+    if (hours > 0) {
+        return `${hours}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`
+    }
+    if (minutes > 0) {
+        return `${minutes}m ${String(seconds).padStart(2, '0')}s`
+    }
+    return `${seconds}s`
+}

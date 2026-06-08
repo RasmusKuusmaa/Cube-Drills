@@ -27,6 +27,10 @@ const props = defineProps<{
   background-color: #ecf0f1;
   padding: 16px;
   width: 200px;
+  /* The Timer tab is position:fixed and covers the viewport, so lift the tab
+     bar above it to keep the buttons clickable. */
+  position: relative;
+  z-index: 1000;
 }
 
 .right-tab-bar button {
