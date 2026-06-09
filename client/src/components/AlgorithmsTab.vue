@@ -7,6 +7,7 @@
       </div>
       <div class="view-toggle">
         <button :class="{ active: view === 'train' }" @click="view = 'train'">Train</button>
+        <button :class="{ active: view === 'speed' }" @click="view = 'speed'">Speed</button>
         <button :class="{ active: view === 'browse' }" @click="view = 'browse'">Browse</button>
       </div>
     </header>
@@ -65,6 +66,89 @@
       </template>
     </section>
 
+    <!-- ===================== SPEED ===================== -->
+    <section v-else-if="view === 'speed'" class="speed">
+      <div v-if="poolCases.length === 0" class="empty">
+        No cases selected. Open <button class="link" @click="view = 'browse'">Browse</button> and pick
+        some algorithms to drill.
+      </div>
+
+      <template v-else>
+        <div class="train-bar">
+          <label class="focus">
+            Focus
+            <select v-model.number="focusCount">
+              <option :value="0">All cases</option>
+              <option :value="3">Worst 3</option>
+              <option :value="6">Worst 6</option>
+              <option :value="9">Worst 9</option>
+            </select>
+          </label>
+          <label class="auf-toggle">
+            <input type="checkbox" :checked="aufEnabled" @change="toggleAuf" />
+            Random angle (AUF)
+          </label>
+        </div>
+
+        <div class="case-display">
+          <PllDiagram v-if="current" :alg="current.alg" :size="170" :key="current.id" />
+          <div class="scramble-card">
+            <div class="scramble-label">Set up on a real cube</div>
+            <div class="scramble">{{ currentSetup || '—' }}</div>
+          </div>
+        </div>
+
+        <div class="timer-area" :class="timerClass">
+          <div class="timer">{{ displayTime }}</div>
+          <p class="hint" v-if="!started">Hold <kbd>Space</kbd> to start · release to go · tap again to stop</p>
+        </div>
+
+        <div class="reveal">
+          <button v-if="!peeked" class="ghost" @click="peeked = true">Reveal algorithm</button>
+          <div v-else-if="current" class="reveal-content">
+            <span class="reveal-name">{{ current.name }}</span>
+            <span class="reveal-alg">{{ current.alg }}</span>
+          </div>
+        </div>
+
+        <div class="session-summary speed-session">
+          <span>{{ sessionTimes.length }} solves</span>
+          <span>ao12 {{ fmt(sessionAo12) }}</span>
+          <span>mean {{ fmt(sessionMean) }}</span>
+          <span>best {{ fmt(sessionBest) }}</span>
+        </div>
+
+        <div class="ranking">
+          <div class="ranking-head">
+            <h2>Weakness ranking</h2>
+            <span class="ranking-sub">slowest first · your ao12 vs the case's target time</span>
+          </div>
+          <ul class="rank-list">
+            <li
+              v-for="(row, i) in ranking"
+              :key="row.case.id"
+              class="rank-row"
+              :class="{ current: row.case.id === current?.id }"
+            >
+              <span class="rank-pos">{{ i + 1 }}</span>
+              <span class="rank-name">{{ row.case.name }}</span>
+              <span class="rank-bar"><span class="rank-bar-fill" :class="ratioClass(row.ratio)" :style="barStyle(row)"></span></span>
+              <span class="rank-ratio" :class="ratioClass(row.ratio)">
+                {{ row.ratio === null ? 'no data' : row.ratio.toFixed(2) + '×' }}
+              </span>
+              <span class="rank-times">
+                <span class="rank-ao" :class="{ prov: row.metric.provisional }">{{
+                  row.metric.value === null ? '--' : fmt(row.metric.value)
+                }}</span>
+                <span class="rank-par">/ {{ (row.par / 1000).toFixed(2) }}</span>
+                <span class="rank-samples" :title="'solves recorded toward ao12'">{{ row.metric.samples }}/12</span>
+              </span>
+            </li>
+          </ul>
+        </div>
+      </template>
+    </section>
+
     <!-- ===================== BROWSE ===================== -->
     <section v-else class="browse">
       <div class="browse-toolbar">
@@ -107,16 +191,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useTimer } from '@/composables/useTimer'
-import { useAlgTrainer } from '@/composables/useAlgTrainer'
+import { useAlgTrainer, ao12Of, type RankRow } from '@/composables/useAlgTrainer'
 import { algorithmsBySet, type Algorithm } from '@/data/algorithms'
 import { formatMs } from '@/utils/solves'
 import PllDiagram from './PllDiagram.vue'
 
-const view = ref<'train' | 'browse'>('train')
+const view = ref<'train' | 'speed' | 'browse'>('train')
 const peeked = ref(false)
 const started = ref(false)
+const focusCount = ref(0)
 
 type HistoryEntry = { name: string; time: number }
 const history = ref<HistoryEntry[]>([])
@@ -128,7 +213,9 @@ const {
   currentSetup,
   aufEnabled,
   sessionTimes,
+  ranking,
   pickNext,
+  pickWeakest,
   recordTime,
   statFor,
   toggleCase,
@@ -139,6 +226,17 @@ const {
   toggleAuf,
 } = useAlgTrainer('PLL')
 
+// In Speed mode, restrict selection to the worst N when a focus is chosen.
+const eligibleIds = computed(() =>
+  focusCount.value ? ranking.value.slice(0, focusCount.value).map((r) => r.case.id) : undefined,
+)
+
+// Choose the next case with the picker appropriate to the active view.
+const advance = () => {
+  if (view.value === 'speed') pickWeakest(eligibleIds.value)
+  else pickNext()
+}
+
 const { displayTime, timerClass, startTimer, startHold, releaseHold } = useTimer({
   onFinish: (time) => {
     if (current.value) {
@@ -147,11 +245,35 @@ const { displayTime, timerClass, startTimer, startHold, releaseHold } = useTimer
     }
     started.value = false
     peeked.value = false
-    pickNext()
+    advance()
   },
 })
 
+// Jump to a weak case when entering Speed mode or changing the focus.
+watch(view, (v) => {
+  if (v === 'speed') pickWeakest(eligibleIds.value)
+})
+watch(focusCount, () => {
+  if (view.value === 'speed') pickWeakest(eligibleIds.value)
+})
+
 const fmt = (ms: number | null) => formatMs(ms)
+
+const sessionAo12 = computed(() => ao12Of(sessionTimes.value))
+
+const ratioClass = (ratio: number | null) => {
+  if (ratio === null) return 'na'
+  if (ratio >= 1.5) return 'bad'
+  if (ratio >= 1.2) return 'warn'
+  return 'good'
+}
+
+// Bar fills from 0 (at target) toward full (≈2× target or worse).
+const barStyle = (row: RankRow) => {
+  if (row.ratio === null) return { width: '100%', opacity: '0.2' }
+  const pct = Math.min(100, Math.max(4, (row.ratio - 1) * 100))
+  return { width: `${pct}%` }
+}
 
 // Grouped list for the Browse view (uses the full set, not just the pool).
 const groupedCases = computed(() => {
@@ -195,8 +317,10 @@ const isTyping = () => {
   return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement
 }
 
+const isDrilling = () => view.value === 'train' || view.value === 'speed'
+
 const handleKeyDown = (e: KeyboardEvent) => {
-  if (view.value !== 'train' || poolCases.value.length === 0 || isTyping()) return
+  if (!isDrilling() || poolCases.value.length === 0 || isTyping()) return
   if (e.code === 'Space' && !e.repeat) {
     e.preventDefault()
     started.value = true
@@ -205,7 +329,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
 }
 
 const handleKeyUp = (e: KeyboardEvent) => {
-  if (view.value !== 'train' || isTyping()) return
+  if (!isDrilling() || isTyping()) return
   if (e.code === 'Space') {
     e.preventDefault()
     releaseHold(() => startTimer())
@@ -545,5 +669,145 @@ kbd {
   font-size: 0.75rem;
   color: #9ca3af;
   font-family: 'Courier New', monospace;
+}
+
+/* ---- Speed ---- */
+.focus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.focus select {
+  padding: 5px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.speed-session {
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.ranking {
+  margin-top: 20px;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 14px;
+}
+
+.ranking-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.ranking-head h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.ranking-sub {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.rank-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rank-row {
+  display: grid;
+  grid-template-columns: 24px 90px 1fr 56px auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.rank-row:nth-child(even) {
+  background: #f9fafb;
+}
+
+.rank-row.current {
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px #bfdbfe inset;
+}
+
+.rank-pos {
+  color: #9ca3af;
+  font-family: 'Courier New', monospace;
+  text-align: right;
+}
+
+.rank-name {
+  font-weight: 600;
+}
+
+.rank-bar {
+  height: 8px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.rank-bar-fill {
+  display: block;
+  height: 100%;
+  background: #94a3b8;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.rank-bar-fill.good { background: #4ade80; }
+.rank-bar-fill.warn { background: #fbbf24; }
+.rank-bar-fill.bad { background: #f87171; }
+.rank-bar-fill.na { background: #e5e7eb; }
+
+.rank-ratio {
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  text-align: right;
+}
+
+.rank-ratio.good { color: #16a34a; }
+.rank-ratio.warn { color: #d97706; }
+.rank-ratio.bad { color: #dc2626; }
+.rank-ratio.na { color: #9ca3af; font-weight: 500; }
+
+.rank-times {
+  font-family: 'Courier New', monospace;
+  font-size: 0.78rem;
+  color: #9ca3af;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.rank-ao {
+  color: #374151;
+  font-weight: 600;
+}
+
+.rank-ao.prov {
+  color: #9ca3af;
+  font-weight: 500;
+  font-style: italic;
+}
+
+.rank-par {
+  color: #cbd5e1;
+}
+
+.rank-samples {
+  color: #9ca3af;
 }
 </style>

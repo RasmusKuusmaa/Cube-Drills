@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { algorithms, algorithmsBySet, type AlgSet, type Algorithm } from '@/data/algorithms'
+import { algorithms, algorithmsBySet, effectivePar, type AlgSet, type Algorithm } from '@/data/algorithms'
 import { invertScramble, randomAuf } from '@/utils/notation'
 
 export type CaseStat = {
@@ -53,6 +53,41 @@ const persistStats = () => localStorage.setItem(STATS_KEY, JSON.stringify(stats.
 const byId = (id: string | null): Algorithm | null =>
     id ? algorithms.find((a) => a.id === id) ?? null : null
 
+// WCA-style ao12 (trim best & worst, mean the middle 10) over the 12 most-recent
+// times. Returns null until 12 solves of the case exist.
+export const ao12Of = (times: number[]): number | null => {
+    if (times.length < 12) return null
+    const last = [...times.slice(0, 12)].sort((a, b) => a - b)
+    const middle = last.slice(1, last.length - 1)
+    return middle.reduce((a, t) => a + t, 0) / middle.length
+}
+
+export type CaseMetric = {
+    // ao12 once 12 solves exist, otherwise a provisional mean of what's recorded.
+    value: number | null
+    samples: number
+    provisional: boolean
+}
+
+const metricOf = (id: string): CaseMetric => {
+    const times = stats.value[id]?.times ?? []
+    const ao = ao12Of(times)
+    if (ao !== null) return { value: ao, samples: times.length, provisional: false }
+    if (times.length) {
+        const mean = times.reduce((a, t) => a + t, 0) / times.length
+        return { value: mean, samples: times.length, provisional: true }
+    }
+    return { value: null, samples: 0, provisional: true }
+}
+
+export type RankRow = {
+    case: Algorithm
+    par: number
+    metric: CaseMetric
+    // value / par: >1 means slower than the case's target. null when no data.
+    ratio: number | null
+}
+
 export function useAlgTrainer(set: AlgSet = 'PLL') {
     const allCases = computed(() => algorithmsBySet(set))
     const poolCases = computed(() => allCases.value.filter((a) => pool.value.has(a.id)))
@@ -84,6 +119,70 @@ export function useAlgTrainer(set: AlgSet = 'PLL') {
         let guard = 0
         while (list.length > 1 && next.id === currentId.value && guard < 10) {
             next = list[Math.floor(Math.random() * list.length)]!
+            guard++
+        }
+        currentId.value = next.id
+        buildSetup(next)
+    }
+
+    // Cases ranked slowest-relative-to-par first; unmeasured cases sort last so
+    // the list reads as "your slowest known cases".
+    const ranking = computed<RankRow[]>(() =>
+        poolCases.value
+            .map((c) => {
+                const par = effectivePar(c)
+                const metric = metricOf(c.id)
+                const ratio = metric.value !== null ? metric.value / par : null
+                return { case: c, par, metric, ratio }
+            })
+            .sort((a, b) => {
+                if (a.ratio === null && b.ratio === null) return 0
+                if (a.ratio === null) return 1
+                if (b.ratio === null) return -1
+                return b.ratio - a.ratio
+            }),
+    )
+
+    // Pick the next case weighted toward the slowest-relative-to-par cases.
+    // Unmeasured cases get a boost so a full per-case ao12 builds up over time.
+    // `eligibleIds`, when given, restricts selection (e.g. "focus on worst 3").
+    const pickWeakest = (eligibleIds?: string[]) => {
+        let list = poolCases.value
+        if (eligibleIds && eligibleIds.length) {
+            const set = new Set(eligibleIds)
+            const filtered = list.filter((c) => set.has(c.id))
+            if (filtered.length) list = filtered
+        }
+        if (list.length === 0) {
+            currentId.value = null
+            currentSetup.value = ''
+            return
+        }
+        const weights = list.map((c) => {
+            const m = metricOf(c.id)
+            let w = 1 // floor: every eligible case can still come up
+            if (m.value === null) {
+                w += 6 // no baseline yet — prioritize measuring it
+            } else {
+                const ratio = m.value / effectivePar(c)
+                w += Math.max(0, ratio - 1) * 5 // the slower vs par, the heavier
+                if (m.samples < 12) w += (12 - m.samples) * 0.25 // top up toward ao12
+            }
+            return w
+        })
+        const total = weights.reduce((a, w) => a + w, 0)
+        const pick = (): Algorithm => {
+            let r = Math.random() * total
+            for (let i = 0; i < list.length; i++) {
+                r -= weights[i]!
+                if (r <= 0) return list[i]!
+            }
+            return list[list.length - 1]!
+        }
+        let next = pick()
+        let guard = 0
+        while (list.length > 1 && next.id === currentId.value && guard < 8) {
+            next = pick()
             guard++
         }
         currentId.value = next.id
@@ -142,7 +241,9 @@ export function useAlgTrainer(set: AlgSet = 'PLL') {
         currentSetup,
         aufEnabled,
         sessionTimes,
+        ranking,
         pickNext,
+        pickWeakest,
         recordTime,
         statFor,
         toggleCase,
