@@ -5,7 +5,7 @@
 // validated against the standard cube (U moves Front -> Left, every PLL setup
 // disturbs only the top layer, and round-trips return to solved).
 
-type Vec = [number, number, number]
+export type Vec = [number, number, number]
 export type FaceId = 'U' | 'D' | 'F' | 'B' | 'R' | 'L'
 
 type Sticker = { pos: Vec; nrm: Vec; color: FaceId; origin: Vec; oface: FaceId }
@@ -35,7 +35,7 @@ const FACES: { id: FaceId; nrm: Vec }[] = [
     { id: 'L', nrm: [-1, 0, 0] },
 ]
 
-const solvedCube = (): Sticker[] => {
+export const solvedCube = (): Sticker[] => {
     const st: Sticker[] = []
     for (const f of FACES) {
         for (let a = -1; a <= 1; a++) {
@@ -103,7 +103,7 @@ const applyMove = (st: Sticker[], token: string) => {
     for (let i = 0; i < times; i++) applyDef(st, def, s)
 }
 
-const applyAlg = (st: Sticker[], alg: string) => {
+export const applyAlg = (st: Sticker[], alg: string) => {
     for (const t of alg.replace(/[()]/g, ' ').trim().split(/\s+/).filter(Boolean)) {
         applyMove(st, t)
     }
@@ -167,7 +167,7 @@ export type PllDiagram = {
     arrows: { from: SlotId; to: SlotId }[]
 }
 
-const colorAt = (st: Sticker[], pos: Vec, nrm: Vec): FaceId => find(st, pos, nrm)?.color ?? 'U'
+export const colorAt = (st: Sticker[], pos: Vec, nrm: Vec): FaceId => find(st, pos, nrm)?.color ?? 'U'
 
 // Build the last-layer recognition diagram for a PLL algorithm.
 export const buildPllDiagram = (alg: string): PllDiagram => {

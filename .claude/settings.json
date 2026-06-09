@@ -26,7 +26,8 @@
       "PowerShell(npm --prefix client run type-check; \"EXIT: $LASTEXITCODE\")",
       "PowerShell(npm --prefix client run build-only 2>&1 | Select-Object -Last 5; \"EXIT: $LASTEXITCODE\")",
       "Bash(node -e ' *)",
-      "Bash(rm -f /tmp/cubetest.mjs && echo \"cleaned\")"
+      "Bash(rm -f /tmp/cubetest.mjs && echo \"cleaned\")",
+      "Bash(npx tsx *)"
     ],
     "additionalDirectories": [
       "\\tmp"
