@@ -57,6 +57,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useScramble } from '@/composables/useScramble'
 import { useTimer } from '@/composables/useTimer'
+import { useGamification } from '@/composables/useGamification'
 import { solveCross, type CrossSolution } from '@/utils/crossSolver'
 import { formatMs } from '@/utils/solves'
 
@@ -79,6 +80,7 @@ const loadStats = (): Stats => {
 }
 
 const { scramble, generateScramble } = useScramble('3x3')
+const { trackCross } = useGamification()
 const difficulty = ref<DiffKey>('any')
 const optimal = ref<CrossSolution>({ moves: [], length: 0 })
 const revealed = ref(false)
@@ -107,6 +109,7 @@ const { displayTime, timerClass, startTimer, startHold, releaseHold } = useTimer
     stats.value.optimalSum += optimal.value.length
     stats.value.optimalCount++
     persist()
+    trackCross(time)
     phase.value = 'idle'
     revealed.value = false
     newScramble()

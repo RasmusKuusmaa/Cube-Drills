@@ -193,6 +193,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useTimer } from '@/composables/useTimer'
+import { useGamification } from '@/composables/useGamification'
 import { useAlgTrainer, ao12Of, type RankRow } from '@/composables/useAlgTrainer'
 import { algorithmsBySet, type Algorithm } from '@/data/algorithms'
 import { formatMs } from '@/utils/solves'
@@ -237,11 +238,14 @@ const advance = () => {
   else pickNext()
 }
 
+const { trackAlg } = useGamification()
+
 const { displayTime, timerClass, startTimer, startHold, releaseHold } = useTimer({
   onFinish: (time) => {
     if (current.value) {
       history.value = [{ name: current.value.name, time }, ...history.value].slice(0, 20)
       recordTime(time)
+      trackAlg(time)
     }
     started.value = false
     peeked.value = false

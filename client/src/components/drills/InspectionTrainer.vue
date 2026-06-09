@@ -57,6 +57,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useScramble } from '@/composables/useScramble'
 import { useTimer } from '@/composables/useTimer'
+import { useGamification } from '@/composables/useGamification'
 import { formatMs, type Penalty } from '@/utils/solves'
 
 const STORE_KEY = 'drills.inspection'
@@ -79,6 +80,7 @@ const stats = ref<Stats>(loadStats())
 const lastResult = ref<Result | null>(null)
 
 const { scramble, generateScramble } = useScramble('3x3')
+const { trackInspection } = useGamification()
 watch(event, (e) => { generateScramble(e); reset() })
 
 // --- Inspection countdown -------------------------------------------------
@@ -154,6 +156,7 @@ const { displayTime, timerClass, startTimer, startHold, releaseHold } = useTimer
     lastResult.value = result
     stats.value.results = [result, ...stats.value.results].slice(0, 200)
     persist()
+    trackInspection(time, penalty)
     phase.value = 'done'
   },
 })

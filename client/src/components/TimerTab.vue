@@ -87,6 +87,7 @@ import { useTimer } from '../composables/useTimer'
 import { useScramble } from '../composables/useScramble'
 import { useSessions } from '@/composables/useSessions'
 import { useAverages } from '@/composables/useAverages'
+import { useGamification } from '@/composables/useGamification'
 import NewSessionModal from './NewSessionModal.vue'
 import EditSessionModal from './EditSessionModal.vue'
 import SolveModal from './SolveModal.vue'
@@ -124,6 +125,8 @@ const {
 
 const { scramble, selectedCube, updateCube, generateScramble } = useScramble(storedCube)
 
+const { trackSolve } = useGamification()
+
 const { displayTime, timerClass, startTimer, startHold, releaseHold } = useTimer({
   onFinish: (finalTime) => {
     addSolve({
@@ -132,6 +135,7 @@ const { displayTime, timerClass, startTimer, startHold, releaseHold } = useTimer
       penalty: 'OK'
     })
 
+    trackSolve(finalTime, 'OK', selectedCube.value)
     generateScramble(selectedCube.value)
   }
 })

@@ -3,19 +3,21 @@
     <TopBar />
 
     <div class="content">
-    
+
 
       <div class="tab-content">
         <component :is="currentTabComponent" />
       </div>
 
-         <RightTabBar 
-        :tabs="tabs" 
-        :currentTab="currentTab" 
+         <RightTabBar
+        :tabs="tabs"
+        :currentTab="currentTab"
         @switch-tab="currentTab = $event"
       />
 
     </div>
+
+    <GameToasts />
   </div>
 </template>
 
@@ -27,12 +29,15 @@ import DrillsTab from '../components/DrillsTab.vue';
 import TimerTab from '../components/TimerTab.vue';
 import StatsTab from '../components/StatsTab.vue';
 import AlgorithmsTab from '../components/AlgorithmsTab.vue';
+import QuestsTab from '../components/QuestsTab.vue';
+import GameToasts from '../components/GameToasts.vue';
 
 const tabs = [
   { id: 'TimerTab', label: 'Timer' },
   { id: 'StatsTab', label: 'Stats' },
   { id: 'AlgorithmsTab', label: 'Algorithms' },
   { id: 'DrillsTab', label: 'Drills' },
+  { id: 'QuestsTab', label: 'Quests' },
 ];
 
 const currentTab = ref('TimerTab');
@@ -45,6 +50,8 @@ const currentTabComponent = computed(() => {
       return StatsTab;
     case 'AlgorithmsTab':
       return AlgorithmsTab;
+    case 'QuestsTab':
+      return QuestsTab;
     case 'DrillsTab':
     default:
       return DrillsTab;

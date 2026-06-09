@@ -87,6 +87,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { useGamification } from '@/composables/useGamification'
 
 // Speffz lettering uses 24 stickers (A–X).
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWX'
@@ -113,6 +114,8 @@ const userInput = ref('')
 const lastCorrect = ref(false)
 const lastMemoMs = ref<number | null>(null)
 const stats = ref<Stats>(loadStats())
+
+const { trackMemo } = useGamification()
 
 const recallInput = ref<HTMLInputElement | null>(null)
 const memoElapsed = ref(0)
@@ -189,6 +192,7 @@ const check = () => {
     s.streak = 0
   }
   persist()
+  trackMemo(lastCorrect.value)
   phase.value = 'result'
 }
 
