@@ -26,10 +26,12 @@ import RightTabBar from '../components/RightTabBar.vue';
 import DrillsTab from '../components/DrillsTab.vue';
 import TimerTab from '../components/TimerTab.vue';
 import StatsTab from '../components/StatsTab.vue';
+import AlgorithmsTab from '../components/AlgorithmsTab.vue';
 
 const tabs = [
   { id: 'TimerTab', label: 'Timer' },
   { id: 'StatsTab', label: 'Stats' },
+  { id: 'AlgorithmsTab', label: 'Algorithms' },
   { id: 'DrillsTab', label: 'Drills' },
 ];
 
@@ -41,6 +43,8 @@ const currentTabComponent = computed(() => {
       return TimerTab;
     case 'StatsTab':
       return StatsTab;
+    case 'AlgorithmsTab':
+      return AlgorithmsTab;
     case 'DrillsTab':
     default:
       return DrillsTab;
