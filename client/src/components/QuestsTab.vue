@@ -58,6 +58,72 @@
       </div>
     </section>
 
+    <!-- Daily time goals -->
+    <section class="block">
+      <div class="block-head">
+        <h2>Daily time goals</h2>
+        <span class="today-total">focused {{ fmtDur(todayFocusMs) }} · practice {{ fmtDur(todayTotalMs) }}</span>
+      </div>
+      <div class="goals-list">
+        <!-- Focused (wall-clock) time -->
+        <div class="goal-row focus" :class="{ done: focusGoal.done }">
+          <span class="goal-icon">{{ focusGoal.done ? '✓' : '🧘' }}</span>
+          <span class="goal-name">{{ focusGoal.label }}</span>
+          <span class="goal-bar">
+            <span class="goal-fill" :style="{ width: `${focusGoal.goalMin ? focusGoal.pct : 0}%` }"></span>
+          </span>
+          <span class="goal-prog">
+            {{ fmtDur(focusGoal.todayMs) }}<template v-if="focusGoal.goalMin"> / {{ focusGoal.goalMin }}m</template>
+          </span>
+          <span class="goal-set">
+            <input
+              type="number" min="0" max="600" class="goal-input"
+              :value="focusGoal.goalMin || ''" placeholder="–"
+              @change="onGoalInput('focus', $event)"
+            />
+            <span class="goal-unit">min</span>
+          </span>
+        </div>
+
+        <!-- Per-activity practice time -->
+        <div v-for="g in timeGoals" :key="g.id" class="goal-row" :class="{ done: g.done }">
+          <span class="goal-icon">{{ g.done ? '✓' : g.icon }}</span>
+          <span class="goal-name">{{ g.label }}</span>
+          <span class="goal-bar">
+            <span class="goal-fill" :style="{ width: `${g.goalMin ? g.pct : 0}%` }"></span>
+          </span>
+          <span class="goal-prog">
+            {{ fmtDur(g.todayMs) }}<template v-if="g.goalMin"> / {{ g.goalMin }}m</template>
+          </span>
+          <span class="goal-set">
+            <input
+              type="number" min="0" max="600" class="goal-input"
+              :value="g.goalMin || ''" placeholder="–"
+              @change="onGoalInput(g.id, $event)"
+            />
+            <span class="goal-unit">min</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Solving time per cube (today) -->
+      <div class="cube-breakdown">
+        <h3 class="cube-title">Solving by cube · today</h3>
+        <div v-if="solveByCubeToday.length" class="cube-list">
+          <span v-for="c in solveByCubeToday" :key="c.cube" class="cube-chip">
+            <span class="cube-name">{{ c.cube }}</span>
+            <span class="cube-time">{{ fmtDur(c.ms) }}</span>
+          </span>
+        </div>
+        <p v-else class="cube-empty">No solves yet today.</p>
+      </div>
+
+      <p class="goals-note">
+        <strong>Focused</strong> is real time spent practicing (idle/away time excluded).
+        <strong>Practice</strong> sums solve and execution durations. Hit a target for bonus XP.
+      </p>
+    </section>
+
     <!-- Achievements -->
     <section class="block">
       <div class="block-head">
@@ -92,13 +158,25 @@
       </div>
     </section>
 
-    <button class="reset-link" @click="confirmReset">Reset all progress</button>
+    <div class="footer-actions">
+      <button class="backfill-btn" :disabled="backfilling" @click="runBackfill">
+        {{ backfilling ? 'Backfilling…' : 'Backfill from solve history' }}
+      </button>
+      <button class="reset-link" @click="confirmReset">Reset all progress</button>
+    </div>
+    <p class="footer-note">
+      Backfill recomputes lifetime solves, bests, daily solving time and streak from your saved solves.
+      You can also run <code>cubeBackfill()</code> in the browser console anytime.
+    </p>
   </div>
 </template>
+
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useGamification } from '@/composables/useGamification'
+import type { ActivityType } from '@/data/gamification'
+import { formatDuration } from '@/utils/solves'
 
 const {
   state,
@@ -107,11 +185,37 @@ const {
   dailyChallenges,
   achievementsView,
   unlockedCount,
+  timeGoals,
+  focusGoal,
+  solveByCubeToday,
+  todayTotalMs,
+  todayFocusMs,
+  setGoal,
+  backfillNow,
   resetProgress,
 } = useGamification()
 
 const pct = (value: number, target: number) =>
   target ? Math.min(100, Math.round((value / target) * 100)) : 0
+
+const fmtDur = (ms: number) => formatDuration(ms)
+
+const onGoalInput = (cat: ActivityType | 'focus', e: Event) => {
+  const raw = Number((e.target as HTMLInputElement).value)
+  setGoal(cat, Number.isFinite(raw) ? raw : 0)
+}
+
+const backfilling = ref(false)
+const runBackfill = async () => {
+  backfilling.value = true
+  try {
+    await backfillNow()
+  } catch {
+    alert('Backfill failed — make sure you are logged in and the server is running.')
+  } finally {
+    backfilling.value = false
+  }
+}
 
 // Group achievements by their `group`, preserving catalog order.
 const groupedAchievements = computed(() => {
@@ -308,6 +412,83 @@ onUnmounted(() => {
 .ach-prog-num { font-size: 0.72rem; color: #9ca3af; font-family: 'Courier New', monospace; }
 .ach-status { font-size: 0.75rem; color: #9ca3af; margin-top: 4px; }
 .ach-status.on { color: #16a34a; font-weight: 600; }
+
+/* ---- Daily time goals ---- */
+.today-total { font-size: 0.82rem; color: #9ca3af; font-family: 'Courier New', monospace; }
+.goals-list { display: flex; flex-direction: column; gap: 6px; }
+.goal-row {
+  display: grid;
+  grid-template-columns: 32px 96px 1fr 120px 96px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+.goal-row:nth-child(even) { background: #f9fafb; }
+.goal-row.done { background: #f0fdf4; }
+.goal-row.focus { background: #f5f3ff; border: 1px solid #e0e7ff; margin-bottom: 4px; }
+.goal-row.focus.done { background: #f0fdf4; }
+.goal-row.focus .goal-icon { background: #ede9fe; }
+.goal-row.focus .goal-fill { background: #8b5cf6; }
+.goal-row.focus .goal-name { color: #6d28d9; }
+.goal-icon {
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  background: #eff6ff; border-radius: 8px; font-size: 1rem;
+}
+.goal-row.done .goal-icon { background: #dcfce7; color: #16a34a; font-weight: 800; }
+.goal-name { font-weight: 600; font-size: 0.9rem; }
+.goal-bar { height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
+.goal-fill { display: block; height: 100%; background: #2563eb; border-radius: 4px; transition: width 0.4s ease; }
+.goal-row.done .goal-fill { background: #16a34a; }
+.goal-prog { font-family: 'Courier New', monospace; font-size: 0.82rem; color: #6b7280; text-align: right; }
+.goal-set { display: flex; align-items: center; gap: 5px; justify-content: flex-end; }
+.goal-input {
+  width: 56px; padding: 4px 6px;
+  border: 1px solid #d1d5db; border-radius: 6px;
+  font-size: 0.82rem; text-align: right;
+}
+.goal-unit { font-size: 0.75rem; color: #9ca3af; }
+.goals-note { font-size: 0.78rem; color: #9ca3af; margin: 10px 0 0; }
+.goals-note strong { color: #6b7280; }
+
+/* ---- Solving by cube ---- */
+.cube-breakdown { margin-top: 16px; }
+.cube-title {
+  font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: #9ca3af; margin: 0 0 8px;
+}
+.cube-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.cube-chip {
+  display: inline-flex; align-items: baseline; gap: 8px;
+  padding: 6px 12px;
+  background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 999px;
+}
+.cube-name { font-weight: 700; font-size: 0.85rem; }
+.cube-time { font-family: 'Courier New', monospace; font-size: 0.8rem; color: #6b7280; }
+.cube-empty { font-size: 0.82rem; color: #9ca3af; margin: 0; }
+
+@media (max-width: 560px) {
+  .goal-row { grid-template-columns: 28px 1fr 84px; }
+  .goal-bar { display: none; }
+}
+
+/* ---- Footer ---- */
+.footer-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
+.backfill-btn {
+  border: 1px solid #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.backfill-btn:hover:not(:disabled) { background: #dbeafe; }
+.backfill-btn:disabled { opacity: 0.6; cursor: default; }
+.footer-note { font-size: 0.76rem; color: #9ca3af; margin: 8px 0 0; }
+.footer-note code { background: #f3f4f6; border-radius: 4px; padding: 1px 5px; font-size: 0.95em; }
 
 .reset-link {
   border: none;

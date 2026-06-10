@@ -4,6 +4,16 @@
 
 export type ActivityType = 'solve' | 'cross' | 'inspection' | 'memo' | 'alg'
 
+// Categories used for daily time tracking and time-based goals. Time logged is
+// the sum of recorded solve/execution durations ("active practice time").
+export const TIME_CATEGORIES: { id: ActivityType; label: string; icon: string }[] = [
+    { id: 'solve', label: 'Solving', icon: '⏱️' },
+    { id: 'alg', label: 'Algorithms', icon: '⚡' },
+    { id: 'cross', label: 'Cross', icon: '✚' },
+    { id: 'inspection', label: 'Inspection', icon: '👀' },
+    { id: 'memo', label: 'Memo', icon: '🧠' },
+]
+
 // An event emitted whenever the user does something trackable. The engine fills
 // in derived flags (isPB, ao12Ms) for main-timer solves before scoring.
 export type GameEvent = {
@@ -11,6 +21,7 @@ export type GameEvent = {
     timeMs?: number
     penalty?: 'OK' | '+2' | 'DNF'
     success?: boolean // memo recall correctness
+    cube?: string // puzzle type for solves (e.g. '3x3'), used for per-cube time
     isPB?: boolean
     ao12Ms?: number | null
 }

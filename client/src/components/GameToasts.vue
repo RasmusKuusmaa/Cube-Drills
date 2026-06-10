@@ -57,6 +57,7 @@ const { toasts, dismissToast } = useGamification()
 .toast.daily { border-left-color: #2563eb; }
 .toast.achievement { border-left-color: #16a34a; }
 .toast.streak { border-left-color: #ef4444; }
+.toast.goal { border-left-color: #0ea5e9; }
 
 .toast-icon {
   font-size: 1.6rem;

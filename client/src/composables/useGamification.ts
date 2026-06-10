@@ -4,6 +4,7 @@ import {
     DAILY_COUNT,
     DAILY_POOL,
     PB_XP,
+    TIME_CATEGORIES,
     baseXp,
     levelInfo,
     type AchievementSnapshot,
@@ -11,8 +12,12 @@ import {
     type GameEvent,
 } from '@/data/gamification'
 import { formatMs } from '@/utils/solves'
+import api from '@/api/api'
 
 const STORE_KEY = 'gamification.v1'
+
+// A goal can target an activity category or the special 'focus' (wall-clock) metric.
+type GoalKey = ActivityType | 'focus'
 
 type DailyItem = { id: string; progress: number; done: boolean }
 
@@ -32,15 +37,25 @@ type State = {
     streak: { current: number; longest: number; lastActive: string }
     achievements: Record<string, string> // id -> ISO timestamp unlocked
     daily: { date: string; items: DailyItem[] }
+    // Per-day practice time (ms) for the non-solve categories.
+    timeByDay: Record<string, Partial<Record<ActivityType, number>>>
+    // Per-day solving time (ms) broken down by puzzle, e.g. { '2026-06-10': { '3x3': 1234 } }.
+    solveByDay: Record<string, Record<string, number>>
+    // Per-day focused (wall-clock) time (ms) while actively practicing.
+    focusByDay: Record<string, number>
+    goals: Partial<Record<GoalKey, number>> // category/focus -> target minutes/day
+    goalDays: Record<string, GoalKey[]> // dateKey -> goals already credited
 }
 
 export type Toast = {
     id: number
-    kind: 'level' | 'pb' | 'daily' | 'achievement' | 'streak'
+    kind: 'level' | 'pb' | 'daily' | 'achievement' | 'streak' | 'goal'
     icon: string
     title: string
     sub: string
 }
+
+export type SolveRecord = { time: number; penalty?: string | null; date?: string | null; cube?: string | null }
 
 // ---- date helpers --------------------------------------------------------
 const dayKey = (d = new Date()): string => {
@@ -49,11 +64,14 @@ const dayKey = (d = new Date()): string => {
     const day = String(d.getDate()).padStart(2, '0')
     return `${y}-${m}-${day}`
 }
-const isYesterday = (key: string): boolean => {
-    const d = new Date()
-    d.setDate(d.getDate() - 1)
-    return dayKey(d) === key
+const prevDayKey = (key: string): string => {
+    const [y, m, d] = key.split('-').map(Number)
+    const dt = new Date(y!, m! - 1, d!)
+    dt.setDate(dt.getDate() - 1)
+    return dayKey(dt)
 }
+const isYesterday = (key: string): boolean => prevDayKey(dayKey()) === key
+const consecutiveDays = (a: string, b: string): boolean => prevDayKey(b) === a
 
 // ---- seeded RNG (deterministic daily challenge pick) ---------------------
 const hashStr = (s: string): number => {
@@ -70,11 +88,9 @@ const mulberry32 = (seed: number) => () => {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
 }
-
 const pickDaily = (dateKey: string): DailyItem[] => {
     const rng = mulberry32(hashStr(dateKey))
     const idx = DAILY_POOL.map((_, i) => i)
-    // Fisher–Yates with the seeded RNG.
     for (let i = idx.length - 1; i > 0; i--) {
         const j = Math.floor(rng() * (i + 1))
         ;[idx[i], idx[j]] = [idx[j]!, idx[i]!]
@@ -101,6 +117,11 @@ const freshState = (): State => ({
     streak: { current: 0, longest: 0, lastActive: '' },
     achievements: {},
     daily: { date: '', items: [] },
+    timeByDay: {},
+    solveByDay: {},
+    focusByDay: {},
+    goals: {},
+    goalDays: {},
 })
 
 const load = (): State => {
@@ -108,8 +129,11 @@ const load = (): State => {
         const raw = localStorage.getItem(STORE_KEY)
         if (raw) {
             const parsed = JSON.parse(raw)
-            // Shallow-merge onto defaults so older saves tolerate new fields.
             const base = freshState()
+            const timeByDay = parsed.timeByDay ?? {}
+            // Migration: solving time moved to `solveByDay`; drop any legacy
+            // `solve` key so it isn't double-counted in daily totals.
+            for (const day of Object.keys(timeByDay)) delete timeByDay[day].solve
             return {
                 ...base,
                 ...parsed,
@@ -118,6 +142,11 @@ const load = (): State => {
                 daily: { ...base.daily, ...parsed.daily },
                 achievements: parsed.achievements ?? {},
                 recent: parsed.recent ?? [],
+                timeByDay,
+                solveByDay: parsed.solveByDay ?? {},
+                focusByDay: parsed.focusByDay ?? {},
+                goals: parsed.goals ?? {},
+                goalDays: parsed.goalDays ?? {},
             }
         }
     } catch {
@@ -130,10 +159,12 @@ const load = (): State => {
 const state = ref<State>(load())
 const toasts = ref<Toast[]>([])
 let toastSeq = 0
+let quiet = false // suppress toasts (used during bulk backfill)
 
 const persist = () => localStorage.setItem(STORE_KEY, JSON.stringify(state.value))
 
 const notify = (t: Omit<Toast, 'id'>) => {
+    if (quiet) return
     const id = ++toastSeq
     toasts.value = [...toasts.value, { ...t, id }]
     setTimeout(() => {
@@ -172,6 +203,53 @@ const bumpStreak = () => {
     if ([3, 7, 14, 30, 50, 100].includes(s.current)) {
         notify({ kind: 'streak', icon: '🔥', title: `${s.current}-day streak!`, sub: 'Keep it alive tomorrow' })
     }
+}
+
+// ---- daily time + goals --------------------------------------------------
+const addTime = (cat: ActivityType, ms: number, dateKey = dayKey()) => {
+    if (!ms || ms <= 0) return
+    const day = (state.value.timeByDay[dateKey] ??= {})
+    day[cat] = (day[cat] ?? 0) + ms
+}
+const addSolveTime = (cube: string, ms: number, dateKey = dayKey()) => {
+    if (!ms || ms <= 0) return
+    const day = (state.value.solveByDay[dateKey] ??= {})
+    day[cube] = (day[cube] ?? 0) + ms
+}
+const daySolveTotal = (dateKey: string): number =>
+    Object.values(state.value.solveByDay[dateKey] ?? {}).reduce((a, ms) => a + (ms ?? 0), 0)
+
+// Time logged today for any goal target (a category, 'solve' total, or 'focus').
+const categoryTimeToday = (cat: GoalKey, today = dayKey()): number => {
+    if (cat === 'focus') return state.value.focusByDay[today] ?? 0
+    if (cat === 'solve') return daySolveTotal(today)
+    return state.value.timeByDay[today]?.[cat] ?? 0
+}
+
+const labelFor = (cat: GoalKey): string =>
+    cat === 'focus' ? 'focused' : TIME_CATEGORIES.find((c) => c.id === cat)?.label ?? cat
+
+const checkGoal = (cat: GoalKey) => {
+    const goalMin = state.value.goals[cat]
+    if (!goalMin) return
+    const today = dayKey()
+    const credited = (state.value.goalDays[today] ??= [])
+    if (categoryTimeToday(cat, today) >= goalMin * 60000 && !credited.includes(cat)) {
+        credited.push(cat)
+        const xp = Math.min(80, Math.max(20, Math.round(goalMin * 2)))
+        addXp(xp)
+        notify({ kind: 'goal', icon: '🎯', title: 'Daily goal reached', sub: `${goalMin}m ${labelFor(cat)} · +${xp} XP` })
+    }
+}
+
+// Accrue focused wall-clock time (driven by useFocusTracker).
+const addFocus = (ms: number) => {
+    if (!ms || ms <= 0) return
+    const today = dayKey()
+    state.value.focusByDay[today] = (state.value.focusByDay[today] ?? 0) + ms
+    if (state.value.streak.lastActive !== today) bumpStreak()
+    checkGoal('focus')
+    persist()
 }
 
 const snapshot = (): AchievementSnapshot => ({
@@ -230,6 +308,16 @@ const ingest = (e: GameEvent) => {
 
     bumpStreak()
 
+    if (e.timeMs && e.timeMs > 0) {
+        if (e.type === 'solve') {
+            addSolveTime(e.cube ?? '3x3', e.timeMs)
+            checkGoal('solve')
+        } else {
+            addTime(e.type, e.timeMs)
+            checkGoal(e.type)
+        }
+    }
+
     for (const item of state.value.daily.items) {
         if (item.done) continue
         const tpl = DAILY_POOL.find((x) => x.id === item.id)
@@ -249,6 +337,101 @@ const ingest = (e: GameEvent) => {
     persist()
 }
 
+// ---- streak recomputed from the set of active days (used by backfill) ----
+const activeDayKeys = (): string[] => {
+    const set = new Set<string>([
+        ...Object.keys(state.value.timeByDay),
+        ...Object.keys(state.value.solveByDay),
+        ...Object.keys(state.value.focusByDay),
+    ])
+    return [...set].sort()
+}
+
+const recomputeStreakFromDays = () => {
+    const days = activeDayKeys()
+    if (!days.length) return
+    let longest = 1
+    let run = 1
+    for (let i = 1; i < days.length; i++) {
+        if (consecutiveDays(days[i - 1]!, days[i]!)) {
+            run++
+            longest = Math.max(longest, run)
+        } else {
+            run = 1
+        }
+    }
+    const set = new Set(days)
+    const today = dayKey()
+    let cursor: string | null = set.has(today) ? today : set.has(prevDayKey(today)) ? prevDayKey(today) : null
+    let current = 0
+    while (cursor && set.has(cursor)) {
+        current++
+        cursor = prevDayKey(cursor)
+    }
+    state.value.streak.longest = Math.max(state.value.streak.longest, longest, current)
+    state.value.streak.current = current
+    state.value.streak.lastActive = days[days.length - 1]!
+}
+
+// Rebuild solve-derived totals, bests and per-cube/per-day solving time from a
+// full solve history. Idempotent. Focused time and drill time are preserved.
+const backfillFromSolves = (solves: SolveRecord[]) => {
+    const sorted = [...solves]
+        .filter((s) => typeof s.time === 'number')
+        .sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime())
+
+    const t = state.value.totals
+    t.solves = 0
+    t.bestSingleMs = null
+    t.bestAo12Ms = null
+    state.value.solveByDay = {} // fully rebuilt below, so a re-run isn't additive
+
+    const recent: number[] = []
+    for (const s of sorted) {
+        const penalty = s.penalty ?? 'OK'
+        if (penalty !== 'DNF') {
+            t.solves++
+            const eff = penalty === '+2' ? s.time + 2000 : s.time
+            if (t.bestSingleMs === null || eff < t.bestSingleMs) t.bestSingleMs = eff
+            recent.unshift(eff)
+            if (recent.length > 12) recent.pop()
+            const a = ao12Of(recent)
+            if (a !== null && (t.bestAo12Ms === null || a < t.bestAo12Ms)) t.bestAo12Ms = a
+        }
+        if (s.date) addSolveTime(s.cube || 'Unknown', s.time, dayKey(new Date(s.date)))
+    }
+
+    quiet = true
+    recomputeStreakFromDays()
+    evaluateAchievements()
+    checkGoal('solve')
+    checkGoal('focus')
+    for (const c of TIME_CATEGORIES) checkGoal(c.id)
+    quiet = false
+
+    persist()
+    const summary = { solves: t.solves, days: Object.keys(state.value.solveByDay).length }
+    notify({ kind: 'achievement', icon: '📥', title: 'Backfill complete', sub: `${summary.solves} solves · ${summary.days} active days` })
+    return summary
+}
+
+const fetchAllSolves = async (): Promise<SolveRecord[]> => {
+    const res = await api.get('/sessions')
+    const sessions = (res.data ?? []) as { cube?: string | null; solves?: SolveRecord[] }[]
+    return sessions.flatMap((s) => (s.solves ?? []).map((solve) => ({ ...solve, cube: s.cube ?? null })))
+}
+
+const backfillNow = async () => backfillFromSolves(await fetchAllSolves())
+
+// Expose backfill helpers as runnable console "scripts".
+if (typeof window !== 'undefined') {
+    const w = window as unknown as Record<string, unknown>
+    w.cubeBackfill = backfillNow
+    w.cubeApplyBackfill = (solves: SolveRecord[]) => backfillFromSolves(solves)
+}
+
+export { addFocus }
+
 export function useGamification() {
     ensureDaily()
 
@@ -258,40 +441,60 @@ export function useGamification() {
         state.value.daily.items.map((item) => {
             const tpl = DAILY_POOL.find((x) => x.id === item.id)!
             return {
-                id: item.id,
-                icon: tpl.icon,
-                title: tpl.title,
-                desc: tpl.desc,
-                target: tpl.target,
-                xp: tpl.xp,
-                progress: item.progress,
-                done: item.done,
+                id: item.id, icon: tpl.icon, title: tpl.title, desc: tpl.desc,
+                target: tpl.target, xp: tpl.xp, progress: item.progress, done: item.done,
             }
         }),
     )
 
     const achievementsView = computed(() => {
         const snap = snapshot()
-        return ACHIEVEMENTS.map((a) => {
-            const unlockedAt = state.value.achievements[a.id] ?? null
-            const progress = Math.min(a.target, a.progress(snap))
-            return {
-                ...a,
-                progress,
-                unlocked: !!unlockedAt,
-                unlockedAt,
-            }
-        })
+        return ACHIEVEMENTS.map((a) => ({
+            ...a,
+            progress: Math.min(a.target, a.progress(snap)),
+            unlocked: !!state.value.achievements[a.id],
+            unlockedAt: state.value.achievements[a.id] ?? null,
+        }))
     })
 
     const unlockedCount = computed(() => Object.keys(state.value.achievements).length)
 
+    const goalView = (cat: GoalKey, label: string, icon: string) => {
+        const todayMs = categoryTimeToday(cat)
+        const goalMin = state.value.goals[cat] ?? 0
+        return {
+            id: cat, label, icon, todayMs, goalMin,
+            done: goalMin > 0 && todayMs >= goalMin * 60000,
+            pct: goalMin > 0 ? Math.min(100, (todayMs / (goalMin * 60000)) * 100) : 0,
+        }
+    }
+
+    // Activity practice-time goals (Solving total, Algorithms, Cross, ...).
+    const timeGoals = computed(() => TIME_CATEGORIES.map((c) => goalView(c.id, c.label, c.icon)))
+
+    // Focused wall-clock time goal.
+    const focusGoal = computed(() => goalView('focus', 'Focused', '🎯'))
+
+    // Today's solving time per puzzle, biggest first.
+    const solveByCubeToday = computed(() => {
+        const today = state.value.solveByDay[dayKey()] ?? {}
+        return Object.entries(today)
+            .map(([cube, ms]) => ({ cube, ms: ms ?? 0 }))
+            .sort((a, b) => b.ms - a.ms)
+    })
+
+    const todayTotalMs = computed(() => {
+        const today = dayKey()
+        const others = Object.values(state.value.timeByDay[today] ?? {}).reduce((a, ms) => a + (ms ?? 0), 0)
+        return daySolveTotal(today) + others
+    })
+    const todayFocusMs = computed(() => state.value.focusByDay[dayKey()] ?? 0)
+
     // --- tracking API (called from the various trainers) ------------------
-    const trackSolve = (timeMs: number, penalty: 'OK' | '+2' | 'DNF', _event?: string) => {
-        const e: GameEvent = { type: 'solve', timeMs, penalty }
+    const trackSolve = (timeMs: number, penalty: 'OK' | '+2' | 'DNF', cube?: string) => {
+        const e: GameEvent = { type: 'solve', timeMs, penalty, cube }
         if (penalty !== 'DNF') {
             const eff = penalty === '+2' ? timeMs + 2000 : timeMs
-            // Only a PB once a baseline exists, so the first-ever solve is silent.
             const prev = state.value.totals.bestSingleMs
             if (prev !== null && eff < prev) e.isPB = true
         }
@@ -300,9 +503,17 @@ export function useGamification() {
     const trackCross = (timeMs: number) => ingest({ type: 'cross', timeMs })
     const trackInspection = (timeMs: number, penalty: 'OK' | '+2' | 'DNF') =>
         ingest({ type: 'inspection', timeMs, penalty })
-    const trackMemo = (success: boolean) => ingest({ type: 'memo', success })
+    const trackMemo = (success: boolean, timeMs = 0) => ingest({ type: 'memo', success, timeMs })
     const trackAlg = (timeMs: number) => ingest({ type: 'alg', timeMs })
     const track = (type: ActivityType) => ingest({ type })
+
+    const setGoal = (cat: GoalKey, minutes: number) => {
+        const m = Math.max(0, Math.min(600, Math.round(minutes || 0)))
+        if (m === 0) delete state.value.goals[cat]
+        else state.value.goals[cat] = m
+        persist()
+        if (m > 0) checkGoal(cat)
+    }
 
     const resetProgress = () => {
         state.value = freshState()
@@ -318,6 +529,11 @@ export function useGamification() {
         dailyChallenges,
         achievementsView,
         unlockedCount,
+        timeGoals,
+        focusGoal,
+        solveByCubeToday,
+        todayTotalMs,
+        todayFocusMs,
         toasts,
         dismissToast,
         trackSolve,
@@ -326,6 +542,8 @@ export function useGamification() {
         trackMemo,
         trackAlg,
         track,
+        setGoal,
+        backfillNow,
         resetProgress,
     }
 }

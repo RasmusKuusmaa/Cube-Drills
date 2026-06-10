@@ -192,7 +192,7 @@ const check = () => {
     s.streak = 0
   }
   persist()
-  trackMemo(lastCorrect.value)
+  trackMemo(lastCorrect.value, lastMemoMs.value ?? 0)
   phase.value = 'result'
 }
 

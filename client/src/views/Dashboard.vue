@@ -31,6 +31,9 @@ import StatsTab from '../components/StatsTab.vue';
 import AlgorithmsTab from '../components/AlgorithmsTab.vue';
 import QuestsTab from '../components/QuestsTab.vue';
 import GameToasts from '../components/GameToasts.vue';
+import { useFocusTracker } from '../composables/useFocusTracker';
+
+useFocusTracker();
 
 const tabs = [
   { id: 'TimerTab', label: 'Timer' },
