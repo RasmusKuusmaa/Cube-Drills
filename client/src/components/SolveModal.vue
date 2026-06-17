@@ -8,6 +8,13 @@
                 <p>Scramble: {{ solve.scramble }}</p>
                 <p>Date: {{ new Date(solve.date).toLocaleString() }}</p>
 
+                <div class="phases" v-if="phaseRows.length">
+                    <div v-for="(row, i) in phaseRows" :key="i" class="phase-row">
+                        <span class="phase-label">{{ row.label }}</span>
+                        <span class="phase-time">{{ formatMs(row.duration) }}</span>
+                    </div>
+                </div>
+
                 <div class="field">
                     <label>Penalty</label>
                     <div class="penalty-buttons">
@@ -38,7 +45,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { formatSolve, type Penalty } from '@/utils/solves'
+import { formatMs, formatSolve, type Penalty } from '@/utils/solves'
 
 type Solve = {
     id: string
@@ -47,6 +54,7 @@ type Solve = {
     date: string
     penalty?: Penalty
     comment?: string | null
+    phases?: number[] | null
 }
 
 const props = defineProps<{
@@ -69,6 +77,20 @@ watch(() => props.solve, (solve) => {
     penalty.value = solve?.penalty ?? 'OK'
     comment.value = solve?.comment ?? ''
 }, { immediate: true })
+
+// Cumulative phase splits -> labelled per-phase durations.
+const phaseRows = computed(() => {
+    const phases = props.solve?.phases
+    if (!phases || phases.length < 2) return []
+    const labels =
+        phases.length === 4
+            ? ['Cross', 'F2L', 'OLL', 'PLL']
+            : phases.map((_, i) => `Phase ${i + 1}`)
+    return phases.map((cumulative, i) => ({
+        label: labels[i],
+        duration: cumulative - (i > 0 ? phases[i - 1]! : 0),
+    }))
+})
 
 const dirty = computed(() => {
     if (!props.solve) return false
@@ -116,6 +138,27 @@ const onDelete = () => {
     border-radius: 10px;
     width: 360px;
     max-width: 90vw;
+}
+
+.phases {
+    margin: 12px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-family: 'Courier New', monospace;
+}
+
+.phase-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: #f9fafb;
+    border: 1px solid #eee;
+}
+
+.phase-time {
+    font-weight: 700;
 }
 
 .field {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 
 from sqlalchemy import ForeignKey, Integer, String, Text
@@ -92,6 +93,9 @@ class Solve(Base):
     scramble: Mapped[str] = mapped_column(Text)
     penalty: Mapped[str] = mapped_column(String, default="OK")
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Multi-phase splits: JSON array of cumulative times (ms) from solve start,
+    # the last element equalling `time`. Null for single-phase solves.
+    phases: Mapped[str | None] = mapped_column(Text, nullable=True)
     solved_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(nullable=True)
@@ -107,6 +111,7 @@ class Solve(Base):
             "scramble": self.scramble,
             "penalty": self.penalty,
             "comment": self.comment,
+            "phases": json.loads(self.phases) if self.phases else None,
             "solved_at": _laravel_datetime(self.solved_at),
             "date": _iso8601(self.solved_at),
         }

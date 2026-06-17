@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -36,6 +37,7 @@ def store(
         time=payload.time,
         scramble=payload.scramble,
         penalty=payload.penalty or "OK",
+        phases=json.dumps(payload.phases) if payload.phases else None,
         solved_at=_utcnow_naive(),
     )
     db.add(solve)

@@ -36,6 +36,8 @@ class SolveCreateIn(BaseModel):
     time: int = Field(ge=0)
     scramble: str = Field(min_length=1)
     penalty: Penalty | None = None
+    # Cumulative phase split times (ms) for multi-phase solves; optional.
+    phases: list[int] | None = None
 
 
 class SolveUpdateIn(BaseModel):

@@ -85,21 +85,66 @@
       @update="handleUpdateSolve" @delete="handleDeleteSolve" />
 
     <div class="main">
-      <div class="cube-selection-container">
-        <select v-model="selectedCube" @change="updateCube(selectedCube)">
-          <option v-for="cube in cubes" :key="cube" :value="cube">
-            {{ cube }}
-          </option>
-        </select>
+      <div class="timer-controls">
+        <div class="cube-selection-container">
+          <select v-model="selectedCube" @change="updateCube(selectedCube)">
+            <option v-for="cube in cubes" :key="cube" :value="cube">
+              {{ cube }}
+            </option>
+          </select>
+        </div>
+
+        <div class="timer-options">
+          <label class="opt">
+            <input type="checkbox" v-model="inspectionEnabled" /> Inspection
+          </label>
+          <label class="opt" v-if="inspectionEnabled">
+            <input type="checkbox" v-model="soundEnabled" /> Sound
+          </label>
+          <label class="opt">
+            <input type="checkbox" v-model="multiPhaseEnabled" /> Multi-phase
+          </label>
+          <label class="opt" v-if="multiPhaseEnabled">
+            Phases
+            <select v-model.number="phaseCount">
+              <option v-for="n in [2, 3, 4, 5, 6]" :key="n" :value="n">{{ n }}</option>
+            </select>
+          </label>
+        </div>
       </div>
 
       <div class="scramble-container">{{ scramble }}</div>
 
       <div class="timer-area">
-        <div class="timer" :class="timerClass">{{ displayTime }}</div>
-        <div class="averages">
-          <span>ao5: {{ ao5 }}</span>
-          <span>ao12: {{ ao12 }}</span>
+        <template v-if="solveState === 'inspecting'">
+          <div class="timer inspection" :class="[timerClass, inspectionTier]">
+            {{ inspectionDisplay }}
+          </div>
+          <div class="inspection-penalty" v-if="livePenalty">{{ livePenalty }}</div>
+          <div class="hint">Hold <kbd>Space</kbd> to ready, release to start</div>
+        </template>
+        <template v-else>
+          <div class="timer" :class="timerClass">{{ displayTime }}</div>
+          <div class="averages">
+            <span>ao5: {{ ao5 }}</span>
+            <span>ao12: {{ ao12 }}</span>
+          </div>
+        </template>
+
+        <div class="phases" v-if="showPhases">
+          <div
+            v-for="(row, i) in phaseRows"
+            :key="i"
+            class="phase-row"
+            :class="{ active: row.active, done: row.done }"
+          >
+            <span class="phase-label">{{ row.label }}</span>
+            <span class="phase-time">{{ row.duration !== null ? formatMs(row.duration) : '—' }}</span>
+            <span class="phase-cumulative">{{ row.cumulative !== null ? formatMs(row.cumulative) : '' }}</span>
+          </div>
+        </div>
+        <div class="hint" v-if="multiPhaseEnabled && solveState === 'solving'">
+          Tap <kbd>Space</kbd> to split ({{ currentPhase + 1 }}/{{ phaseCount }})
         </div>
       </div>
     </div>
@@ -107,12 +152,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useTimer } from '../composables/useTimer'
 import { useScramble } from '../composables/useScramble'
 import { useSessions } from '@/composables/useSessions'
 import { useAverages } from '@/composables/useAverages'
 import { useGamification } from '@/composables/useGamification'
+import { useInspection } from '@/composables/useInspection'
 import NewSessionModal from './NewSessionModal.vue'
 import EditSessionModal from './EditSessionModal.vue'
 import SolveModal from './SolveModal.vue'
@@ -130,6 +176,7 @@ type Solve = {
   date: string
   penalty?: Penalty
   comment?: string | null
+  phases?: number[] | null
 }
 
 const cubes = ['2x2', '3x3', '4x4', '5x5', 'Megaminx', 'Pyraminx', 'Skewb', 'Square-1', 'Clock']
@@ -152,18 +199,90 @@ const { scramble, selectedCube, updateCube, generateScramble } = useScramble(sto
 
 const { trackSolve } = useGamification()
 
-const { displayTime, timerClass, startTimer, startHold, releaseHold } = useTimer({
+// --- Optional modes (persisted) -------------------------------------------
+const inspectionEnabled = ref(localStorage.getItem('timer.inspection') === 'true')
+const soundEnabled = ref(localStorage.getItem('timer.sound') !== 'false') // default on
+const multiPhaseEnabled = ref(localStorage.getItem('timer.multiphase') === 'true')
+const phaseCount = ref(Number(localStorage.getItem('timer.phaseCount')) || 4)
+
+watch(inspectionEnabled, (v) => localStorage.setItem('timer.inspection', String(v)))
+watch(soundEnabled, (v) => localStorage.setItem('timer.sound', String(v)))
+watch(multiPhaseEnabled, (v) => localStorage.setItem('timer.multiphase', String(v)))
+watch(phaseCount, (v) => localStorage.setItem('timer.phaseCount', String(v)))
+
+// --- Solve flow state -----------------------------------------------------
+// idle -> (inspecting) -> solving -> idle
+const solveState = ref<'idle' | 'inspecting' | 'solving'>('idle')
+const splits = ref<number[]>([]) // cumulative ms captured during the current solve
+const currentPhase = ref(0)
+const pendingPenalty = ref<Penalty>('OK') // carried over from inspection
+const lastSplits = ref<number[]>([]) // splits of the most recently finished solve
+
+const {
+  display: inspectionDisplay,
+  livePenalty,
+  tier: inspectionTier,
+  start: startInspection,
+  stop: stopInspection,
+  reset: resetInspection,
+} = useInspection({ sound: soundEnabled })
+
+const { displayTime, timer, timerClass, startTimer, stopTimer, startHold, releaseHold } = useTimer({
   onFinish: (finalTime) => {
+    const penalty = pendingPenalty.value
+    const phases =
+      multiPhaseEnabled.value && splits.value.length > 1 ? [...splits.value] : undefined
+
     addSolve({
       time: finalTime,
       scramble: scramble.value,
-      penalty: 'OK'
+      penalty,
+      phases,
     })
 
-    trackSolve(finalTime, 'OK', selectedCube.value)
+    trackSolve(finalTime, penalty, selectedCube.value)
     generateScramble(selectedCube.value)
+
+    lastSplits.value = phases ?? []
+    solveState.value = 'idle'
+    pendingPenalty.value = 'OK'
+    splits.value = []
+    currentPhase.value = 0
   }
 })
+
+// --- Multi-phase helpers --------------------------------------------------
+const phaseLabels = computed(() =>
+  phaseCount.value === 4
+    ? ['Cross', 'F2L', 'OLL', 'PLL']
+    : Array.from({ length: phaseCount.value }, (_, i) => `Phase ${i + 1}`)
+)
+
+// Rows shown live while solving, then for the last finished solve.
+const phaseSource = computed(() =>
+  solveState.value === 'solving' ? splits.value : lastSplits.value
+)
+
+const phaseRows = computed(() =>
+  phaseLabels.value.map((label, i) => {
+    const src = phaseSource.value
+    const done = i < src.length
+    const cumulative = done ? src[i]! : null
+    const prev = i > 0 ? src[i - 1] ?? null : 0
+    const duration = done && prev !== null ? cumulative! - prev : null
+    return {
+      label,
+      cumulative,
+      duration,
+      done,
+      active: solveState.value === 'solving' && i === currentPhase.value,
+    }
+  })
+)
+
+const showPhases = computed(
+  () => multiPhaseEnabled.value && (solveState.value === 'solving' || lastSplits.value.length > 0)
+)
 
 const {
   currentTime,
@@ -274,17 +393,69 @@ const handleDeleteSolve = async (id: string) => {
 
 
 
+// Don't hijack space while the user is typing (session name, comment, etc.).
+const isTyping = () => {
+  const el = document.activeElement
+  return (
+    el instanceof HTMLInputElement ||
+    el instanceof HTMLTextAreaElement ||
+    el instanceof HTMLSelectElement ||
+    (el instanceof HTMLElement && el.isContentEditable)
+  )
+}
+
+const beginSolving = () => {
+  splits.value = []
+  currentPhase.value = 0
+  solveState.value = 'solving'
+  startTimer()
+}
+
 const handleKeyDown = (e: KeyboardEvent) => {
-  if (e.code === 'Space' && !e.repeat) {
-    e.preventDefault()
-    startHold(() => { })
+  if (e.code !== 'Space' || e.repeat || isTyping()) return
+  e.preventDefault()
+
+  if (solveState.value === 'solving') {
+    // Record a phase split, or stop on the final phase.
+    if (multiPhaseEnabled.value && currentPhase.value < phaseCount.value - 1) {
+      splits.value.push(timer.value)
+      currentPhase.value++
+    } else {
+      splits.value.push(timer.value)
+      stopTimer()
+    }
+    return
+  }
+
+  if (solveState.value === 'inspecting') {
+    startHold(() => {}) // hold to "ready" while the inspection clock runs
+    return
+  }
+
+  // idle
+  if (inspectionEnabled.value) {
+    solveState.value = 'inspecting'
+    startInspection()
+  } else {
+    startHold(() => {})
   }
 }
 
 const handleKeyUp = (e: KeyboardEvent) => {
-  if (e.code === 'Space') {
-    e.preventDefault()
-    releaseHold(() => startTimer())
+  if (e.code !== 'Space' || isTyping()) return
+  e.preventDefault()
+
+  if (solveState.value === 'inspecting') {
+    releaseHold(() => {
+      const { penalty } = stopInspection()
+      pendingPenalty.value = penalty
+      beginSolving()
+    })
+  } else if (solveState.value === 'idle') {
+    releaseHold(() => {
+      pendingPenalty.value = 'OK'
+      beginSolving()
+    })
   }
 }
 
@@ -296,6 +467,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('keyup', handleKeyUp)
+  resetInspection()
 })
 </script>
 
@@ -567,6 +739,127 @@ onUnmounted(() => {
 
 .timer.running {
   color: black;
+}
+
+/* Inspection countdown colour tiers (mirrors the inspection drill). */
+.timer.inspection {
+  font-variant-numeric: tabular-nums;
+}
+
+.timer.inspection.warn1 {
+  color: #ca8a04;
+}
+
+.timer.inspection.warn2 {
+  color: #ea580c;
+}
+
+.timer.inspection.over {
+  color: #dc2626;
+}
+
+/* Hold-to-ready cue should win over the time tier colour. */
+.timer.inspection.ready {
+  color: #16a34a;
+}
+
+.timer.inspection.early {
+  color: #dc2626;
+}
+
+.inspection-penalty {
+  color: #dc2626;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+/* --- Controls / options bar --- */
+.timer-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.timer-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px 16px;
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.opt select {
+  padding: 2px 4px;
+}
+
+.hint {
+  color: #9ca3af;
+  font-size: 0.85rem;
+}
+
+kbd {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.8rem;
+}
+
+/* --- Multi-phase splits --- */
+.phases {
+  width: min(22rem, 90%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: monospace;
+}
+
+.phase-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #f9fafb;
+  border: 1px solid #eee;
+  color: #9ca3af;
+}
+
+.phase-row.done {
+  color: #1f2937;
+}
+
+.phase-row.active {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.phase-label {
+  text-align: left;
+}
+
+.phase-time {
+  text-align: right;
+  font-weight: 700;
+}
+
+.phase-cumulative {
+  text-align: right;
+  font-size: 0.82em;
+  color: #9ca3af;
+  min-width: 3.5em;
 }
 
 @media (max-width: 800px) {

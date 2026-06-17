@@ -1,11 +1,21 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import settings
+from .database import ensure_schema
 from .routers import auth, sessions, solves
 
-app = FastAPI(title="Cube Drills API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    ensure_schema()
+    yield
+
+
+app = FastAPI(title="Cube Drills API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

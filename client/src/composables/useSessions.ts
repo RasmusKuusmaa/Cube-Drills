@@ -8,6 +8,7 @@ type Solve = {
     date: string
     penalty?: 'OK' | '+2' | 'DNF'
     comment?: string | null
+    phases?: number[] | null
 }
 
 type Session = {
