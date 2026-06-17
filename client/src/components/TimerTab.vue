@@ -177,6 +177,7 @@ type Solve = {
   penalty?: Penalty
   comment?: string | null
   phases?: number[] | null
+  inspectionMs?: number | null
 }
 
 const cubes = ['2x2', '3x3', '4x4', '5x5', 'Megaminx', 'Pyraminx', 'Skewb', 'Square-1', 'Clock']
@@ -216,6 +217,7 @@ const solveState = ref<'idle' | 'inspecting' | 'solving'>('idle')
 const splits = ref<number[]>([]) // cumulative ms captured during the current solve
 const currentPhase = ref(0)
 const pendingPenalty = ref<Penalty>('OK') // carried over from inspection
+const pendingInspectionMs = ref(0) // inspection time used for the pending solve
 const lastSplits = ref<number[]>([]) // splits of the most recently finished solve
 
 const {
@@ -233,11 +235,14 @@ const { displayTime, timer, timerClass, startTimer, stopTimer, startHold, releas
     const phases =
       multiPhaseEnabled.value && splits.value.length > 1 ? [...splits.value] : undefined
 
+    const inspectionMs = pendingInspectionMs.value > 0 ? pendingInspectionMs.value : undefined
+
     addSolve({
       time: finalTime,
       scramble: scramble.value,
       penalty,
       phases,
+      inspectionMs,
     })
 
     trackSolve(finalTime, penalty, selectedCube.value)
@@ -246,6 +251,7 @@ const { displayTime, timer, timerClass, startTimer, stopTimer, startHold, releas
     lastSplits.value = phases ?? []
     solveState.value = 'idle'
     pendingPenalty.value = 'OK'
+    pendingInspectionMs.value = 0
     splits.value = []
     currentPhase.value = 0
   }
@@ -447,8 +453,9 @@ const handleKeyUp = (e: KeyboardEvent) => {
 
   if (solveState.value === 'inspecting') {
     releaseHold(() => {
-      const { penalty } = stopInspection()
+      const { elapsed, penalty } = stopInspection()
       pendingPenalty.value = penalty
+      pendingInspectionMs.value = elapsed
       beginSolving()
     })
   } else if (solveState.value === 'idle') {

@@ -5,6 +5,7 @@
 
             <div v-if="solve">
                 <p>Time: {{ formatSolve(solve) }}</p>
+                <p v-if="solve.inspectionMs != null">Inspection: {{ formatMs(solve.inspectionMs) }}s</p>
                 <p>Scramble: {{ solve.scramble }}</p>
                 <p>Date: {{ new Date(solve.date).toLocaleString() }}</p>
 
@@ -55,6 +56,7 @@ type Solve = {
     penalty?: Penalty
     comment?: string | null
     phases?: number[] | null
+    inspectionMs?: number | null
 }
 
 const props = defineProps<{

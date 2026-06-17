@@ -96,6 +96,9 @@ class Solve(Base):
     # Multi-phase splits: JSON array of cumulative times (ms) from solve start,
     # the last element equalling `time`. Null for single-phase solves.
     phases: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Inspection time (ms) the solver used before starting; null when the solve
+    # was done without inspection.
+    inspection_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     solved_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(nullable=True)
@@ -112,6 +115,7 @@ class Solve(Base):
             "penalty": self.penalty,
             "comment": self.comment,
             "phases": json.loads(self.phases) if self.phases else None,
+            "inspectionMs": self.inspection_ms,
             "solved_at": _laravel_datetime(self.solved_at),
             "date": _iso8601(self.solved_at),
         }

@@ -38,6 +38,7 @@ def store(
         scramble=payload.scramble,
         penalty=payload.penalty or "OK",
         phases=json.dumps(payload.phases) if payload.phases else None,
+        inspection_ms=payload.inspectionMs,
         solved_at=_utcnow_naive(),
     )
     db.add(solve)

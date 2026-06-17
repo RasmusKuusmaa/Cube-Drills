@@ -8,6 +8,16 @@ type Solve = {
     date: string
     penalty?: Penalty
     comment?: string | null
+    phases?: number[] | null
+    inspectionMs?: number | null
+}
+
+export type PhaseStatRow = {
+    label: string
+    avgMs: number
+    bestMs: number
+    worstMs: number
+    sharePct: number
 }
 
 export type AverageRow = {
@@ -304,11 +314,123 @@ export function useStats(solves: ComputedRef<Solve[]>) {
         return { from: firstAo12, to: lastAo12, delta: lastAo12 - firstAo12 }
     })
 
+    // --- Time accounting ---------------------------------------------------
+    // Raw recorded solve durations (no penalty folding), used for "wall time".
+    const rawTimes = computed(() =>
+        solves.value.map((s) => s.time).filter((t) => Number.isFinite(t)),
+    )
+    const cumulativeSolveMs = computed(() => rawTimes.value.reduce((a, t) => a + t, 0))
+
+    const withInspection = computed(() =>
+        solves.value.filter((s) => s.inspectionMs != null && s.inspectionMs >= 0),
+    )
+    const inspectionMsList = computed(() =>
+        withInspection.value.map((s) => s.inspectionMs as number),
+    )
+
+    const inspection = computed(() => {
+        const list = inspectionMsList.value
+        const used = list.length
+        const totalMs = list.reduce((a, t) => a + t, 0)
+        return {
+            used,
+            usedPct: solves.value.length ? used / solves.value.length : 0,
+            totalMs,
+            avgMs: used ? totalMs / used : null,
+            bestMs: used ? Math.min(...list) : null,
+            worstMs: used ? Math.max(...list) : null,
+            // Inspection that ran into WCA penalties.
+            over15: list.filter((t) => t > 15000).length, // +2
+            over17: list.filter((t) => t > 17000).length, // DNF
+        }
+    })
+
+    const timeAccounting = computed(() => {
+        const solveMs = cumulativeSolveMs.value
+        const inspMs = inspection.value.totalMs
+        const total = solves.value.length
+        return {
+            cumulativeSolveMs: solveMs,
+            inspectionMs: inspMs,
+            solvePlusInspectionMs: solveMs + inspMs,
+            avgSolveMs: total ? solveMs / total : null,
+            avgSolvePlusInspectionMs: total ? (solveMs + inspMs) / total : null,
+        }
+    })
+
+    // --- Multi-phase breakdown --------------------------------------------
+    // Only solves whose phase structure matches the dominant phase count are
+    // aggregated, so per-phase rows compare like with like.
+    const phased = computed(() =>
+        solves.value.filter(
+            (s) =>
+                Array.isArray(s.phases) &&
+                s.phases.length >= 2 &&
+                s.phases.every((t) => Number.isFinite(t)),
+        ),
+    )
+
+    const phaseStats = computed(() => {
+        const list = phased.value
+        if (list.length === 0) return null
+        // Pick the most common phase count.
+        const byCount = new Map<number, Solve[]>()
+        for (const s of list) {
+            const count = s.phases!.length
+            const group = byCount.get(count) ?? []
+            group.push(s)
+            byCount.set(count, group)
+        }
+        let dominant: { n: number; solves: Solve[] } | null = null
+        for (const [count, group] of byCount) {
+            if (!dominant || group.length > dominant.solves.length) {
+                dominant = { n: count, solves: group }
+            }
+        }
+        if (!dominant) return null
+
+        const n = dominant.n
+        const group = dominant.solves
+        const labels =
+            n === 4
+                ? ['Cross', 'F2L', 'OLL', 'PLL']
+                : Array.from({ length: n }, (_, i) => `Phase ${i + 1}`)
+
+        // Per-phase durations from cumulative splits.
+        const durations: number[][] = Array.from({ length: n }, () => [])
+        for (const s of group) {
+            const p = s.phases!
+            for (let i = 0; i < n; i++) {
+                durations[i]!.push(p[i]! - (i > 0 ? p[i - 1]! : 0))
+            }
+        }
+
+        const avgTotal =
+            group.reduce((a, s) => a + s.phases![n - 1]!, 0) / group.length
+
+        const rows: PhaseStatRow[] = labels.map((label, i) => {
+            const d = durations[i]!
+            const avg = d.reduce((a, t) => a + t, 0) / d.length
+            return {
+                label,
+                avgMs: avg,
+                bestMs: Math.min(...d),
+                worstMs: Math.max(...d),
+                sharePct: avgTotal ? (avg / avgTotal) * 100 : 0,
+            }
+        })
+
+        return { count: group.length, phaseCount: n, avgTotalMs: avgTotal, rows }
+    })
+
     const hasData = computed(() => solves.value.length > 0)
 
     return {
         hasData,
         counts,
+        inspection,
+        timeAccounting,
+        phaseStats,
         best,
         worst,
         meanAll,

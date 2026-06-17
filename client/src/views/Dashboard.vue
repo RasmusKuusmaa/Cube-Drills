@@ -22,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import TopBar from '../components/TopBar.vue';
 import RightTabBar from '../components/RightTabBar.vue';
 import DrillsTab from '../components/DrillsTab.vue';
@@ -32,6 +32,7 @@ import AlgorithmsTab from '../components/AlgorithmsTab.vue';
 import QuestsTab from '../components/QuestsTab.vue';
 import GameToasts from '../components/GameToasts.vue';
 import { useFocusTracker } from '../composables/useFocusTracker';
+import { setActiveTab } from '../composables/useGamification';
 
 useFocusTracker();
 
@@ -44,6 +45,10 @@ const tabs = [
 ];
 
 const currentTab = ref('TimerTab');
+
+// Attribute focused wall-clock time to whichever tab is open.
+setActiveTab(currentTab.value);
+watch(currentTab, (tab) => setActiveTab(tab));
 
 const currentTabComponent = computed(() => {
   switch (currentTab.value) {

@@ -52,8 +52,26 @@
             <span class="metric-value">{{ fmt(todayAverageBest('ao12')) }}</span>
           </div>
           <div class="metric">
-            <span class="metric-label">Time practiced</span>
-            <span class="metric-value">{{ formatDuration(todayPracticeMs) }}</span>
+            <span class="metric-label">Solve time</span>
+            <span class="metric-value">{{ formatDuration(todayTime.cumulativeSolveMs) }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Inspection time</span>
+            <span class="metric-value">{{ formatDuration(todayTime.inspectionMs) }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Solve + inspection</span>
+            <span class="metric-value">{{ formatDuration(todayTime.solvePlusInspectionMs) }}</span>
+          </div>
+          <div class="metric metric-accent">
+            <span class="metric-label">Time on site</span>
+            <span class="metric-value">{{ formatDuration(todayFocusMs) }}</span>
+            <span class="metric-sub">focused today</span>
+          </div>
+          <div class="metric" v-if="todayInspection.used > 0">
+            <span class="metric-label">Avg inspection</span>
+            <span class="metric-value">{{ fmt(todayInspection.avgMs) }}</span>
+            <span class="metric-sub">{{ todayInspection.used }} solves</span>
           </div>
         </div>
       </section>
@@ -87,10 +105,106 @@
           <span class="metric-sub">{{ counts.completed }} completed</span>
         </div>
         <div class="metric">
-          <span class="metric-label">Time practiced</span>
+          <span class="metric-label">Solve time (sum)</span>
           <span class="metric-value">{{ formatDuration(totalPracticeMs) }}</span>
+          <span class="metric-sub">cumulative</span>
         </div>
       </section>
+
+      <!-- Time accounting -->
+      <div class="section-head">
+        <h2>Time accounting</h2>
+        <span class="section-sub">where the time goes</span>
+      </div>
+      <section class="cards">
+        <div class="metric">
+          <span class="metric-label">Cumulative solve time</span>
+          <span class="metric-value">{{ formatDuration(timeAccounting.cumulativeSolveMs) }}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Inspection time</span>
+          <span class="metric-value">{{ formatDuration(timeAccounting.inspectionMs) }}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Solve + inspection</span>
+          <span class="metric-value">{{ formatDuration(timeAccounting.solvePlusInspectionMs) }}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Avg solve</span>
+          <span class="metric-value">{{ fmt(timeAccounting.avgSolveMs) }}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Avg solve + insp.</span>
+          <span class="metric-value">{{ fmt(timeAccounting.avgSolvePlusInspectionMs) }}</span>
+        </div>
+      </section>
+
+      <!-- Inspection (mode-aware) -->
+      <template v-if="inspection.used > 0">
+        <div class="section-head">
+          <h2>Inspection</h2>
+          <span class="section-sub">{{ inspection.used }} of {{ counts.total }} solves · {{ percent(inspection.usedPct) }}</span>
+        </div>
+        <section class="cards">
+          <div class="metric">
+            <span class="metric-label">Avg inspection</span>
+            <span class="metric-value">{{ fmt(inspection.avgMs) }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Best</span>
+            <span class="metric-value">{{ fmt(inspection.bestMs) }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Worst</span>
+            <span class="metric-value">{{ fmt(inspection.worstMs) }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">+2 from inspection</span>
+            <span class="metric-value">{{ inspection.over15 }}</span>
+            <span class="metric-sub">over 15s</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">DNF from inspection</span>
+            <span class="metric-value">{{ inspection.over17 }}</span>
+            <span class="metric-sub">over 17s</span>
+          </div>
+        </section>
+      </template>
+
+      <!-- Multi-phase (mode-aware) -->
+      <template v-if="phaseStats">
+        <div class="section-head">
+          <h2>Multi-phase breakdown</h2>
+          <span class="section-sub">
+            {{ phaseStats.count }} solves · {{ phaseStats.phaseCount }} phases · avg {{ fmt(phaseStats.avgTotalMs) }}
+          </span>
+        </div>
+        <div class="panel wide">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Phase</th>
+                <th>Avg</th>
+                <th>Share</th>
+                <th>Best</th>
+                <th>Worst</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in phaseStats.rows" :key="row.label">
+                <td class="label">{{ row.label }}</td>
+                <td class="num">{{ fmt(row.avgMs) }}</td>
+                <td class="phase-bar">
+                  <div class="bar-track"><div class="bar-fill" :style="{ width: row.sharePct + '%' }"></div></div>
+                  <span class="pct">{{ row.sharePct.toFixed(0) }}%</span>
+                </td>
+                <td class="num best">{{ fmt(row.bestMs) }}</td>
+                <td class="num">{{ fmt(row.worstMs) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
 
       <div class="grid">
         <!-- Averages table -->
@@ -289,6 +403,47 @@
           </div>
         </div>
       </div>
+
+      <!-- App-wide time spent (every tab / activity, all sessions) -->
+      <div class="section-head">
+        <h2>Time spent in app</h2>
+        <span class="section-sub">focused wall-clock · all activity</span>
+      </div>
+      <section class="cards">
+        <div class="metric metric-accent">
+          <span class="metric-label">Total focused</span>
+          <span class="metric-value">{{ formatDuration(focusTotalMs) }}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Focused today</span>
+          <span class="metric-value">{{ formatDuration(todayFocusMs) }}</span>
+        </div>
+      </section>
+
+      <div class="grid">
+        <div class="panel">
+          <h2>Time by tab</h2>
+          <div v-if="focusByTab.length" class="kv-list">
+            <div v-for="t in focusByTab" :key="t.tab" class="time-row">
+              <span class="time-label">{{ t.label }}</span>
+              <div class="bar-track"><div class="bar-fill" :style="{ width: (t.ms / maxTabMs) * 100 + '%' }"></div></div>
+              <span class="num time-val">{{ formatDuration(t.ms) }}</span>
+            </div>
+          </div>
+          <p v-else class="hint">No focused time recorded yet.</p>
+        </div>
+
+        <div class="panel">
+          <h2>Time by activity</h2>
+          <div class="kv-list">
+            <div v-for="c in timeByCategoryTotal" :key="c.id" class="time-row">
+              <span class="time-label">{{ c.icon }} {{ c.label }}</span>
+              <div class="bar-track"><div class="bar-fill" :style="{ width: (c.ms / maxCatMs) * 100 + '%' }"></div></div>
+              <span class="num time-val">{{ formatDuration(c.ms) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </template>
   </div>
 </template>
@@ -297,6 +452,7 @@
 import { computed, ref } from 'vue'
 import { useSessions } from '@/composables/useSessions'
 import { useStats } from '@/composables/useStats'
+import { useGamification } from '@/composables/useGamification'
 import { formatMs, formatDuration, type Penalty } from '@/utils/solves'
 
 type Solve = {
@@ -306,6 +462,8 @@ type Solve = {
   date: string
   penalty?: Penalty
   comment?: string | null
+  phases?: number[] | null
+  inspectionMs?: number | null
 }
 
 const { sessions, currentSession } = useSessions()
@@ -349,6 +507,9 @@ const {
   pbProgression,
   weekdays,
   improvement,
+  inspection,
+  timeAccounting,
+  phaseStats,
 } = useStats(scopedSolves)
 
 // --- Today (within the current scope) -------------------------------------
@@ -369,8 +530,9 @@ const {
   counts: todayCounts,
   best: todayBest,
   meanAll: todayMean,
-  totalPracticeMs: todayPracticeMs,
   averages: todayAverages,
+  timeAccounting: todayTime,
+  inspection: todayInspection,
 } = useStats(todaySolves)
 
 const todayAverageBest = (label: string) =>
@@ -386,6 +548,11 @@ const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 
 const averageBest = (label: string) => averages.value.find((a) => a.label === label)?.best ?? null
+
+// App-wide time accounting (not scoped to a session — spans every activity).
+const { focusByTab, timeByCategoryTotal, focusTotalMs, todayFocusMs } = useGamification()
+const maxTabMs = computed(() => Math.max(1, ...focusByTab.value.map((t) => t.ms)))
+const maxCatMs = computed(() => Math.max(1, ...timeByCategoryTotal.value.map((t) => t.ms)))
 
 const maxWeekday = computed(() => Math.max(0, ...weekdays.value.map((d) => d.count)))
 
@@ -827,6 +994,37 @@ const pbPoints = computed(() => {
 .pct {
   color: #6b7280;
   font-size: 0.82rem;
+}
+
+/* Bar cell used in the multi-phase table (bar + inline percent). */
+.phase-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 7rem;
+}
+
+.phase-bar .bar-track {
+  flex: 1;
+}
+
+/* Time-by-tab / time-by-activity rows. */
+.time-row {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 2px;
+}
+
+.time-label {
+  font-size: 0.85rem;
+}
+
+.time-val {
+  font-size: 0.82rem;
+  color: #4b5563;
+  white-space: nowrap;
 }
 
 .weekday-chart {

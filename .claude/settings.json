@@ -29,7 +29,9 @@
       "Bash(rm -f /tmp/cubetest.mjs && echo \"cleaned\")",
       "Bash(npx tsx *)",
       "Bash(node scripts/backfill.mjs)",
-      "Bash(echo \"exit=$?\")"
+      "Bash(echo \"exit=$?\")",
+      "Bash(curl -s \"http://localhost:5173/src/components/StatsTab.vue\" -o /tmp/statstab.js)",
+      "Read(//tmp/**)"
     ],
     "additionalDirectories": [
       "\\tmp"

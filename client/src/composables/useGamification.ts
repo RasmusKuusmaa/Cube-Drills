@@ -43,6 +43,8 @@ type State = {
     solveByDay: Record<string, Record<string, number>>
     // Per-day focused (wall-clock) time (ms) while actively practicing.
     focusByDay: Record<string, number>
+    // Per-day focused time (ms) attributed to the active tab/view.
+    focusByTabDay: Record<string, Record<string, number>>
     goals: Partial<Record<GoalKey, number>> // category/focus -> target minutes/day
     goalDays: Record<string, GoalKey[]> // dateKey -> goals already credited
 }
@@ -120,6 +122,7 @@ const freshState = (): State => ({
     timeByDay: {},
     solveByDay: {},
     focusByDay: {},
+    focusByTabDay: {},
     goals: {},
     goalDays: {},
 })
@@ -145,6 +148,7 @@ const load = (): State => {
                 timeByDay,
                 solveByDay: parsed.solveByDay ?? {},
                 focusByDay: parsed.focusByDay ?? {},
+                focusByTabDay: parsed.focusByTabDay ?? {},
                 goals: parsed.goals ?? {},
                 goalDays: parsed.goalDays ?? {},
             }
@@ -157,6 +161,11 @@ const load = (): State => {
 
 // Module-level singletons so all components share one profile.
 const state = ref<State>(load())
+// The tab/view currently in focus, so wall-clock time can be attributed to it.
+const activeTab = ref<string>('TimerTab')
+const setActiveTab = (tab: string) => {
+    activeTab.value = tab
+}
 const toasts = ref<Toast[]>([])
 let toastSeq = 0
 let quiet = false // suppress toasts (used during bulk backfill)
@@ -247,6 +256,8 @@ const addFocus = (ms: number) => {
     if (!ms || ms <= 0) return
     const today = dayKey()
     state.value.focusByDay[today] = (state.value.focusByDay[today] ?? 0) + ms
+    const tabDay = (state.value.focusByTabDay[today] ??= {})
+    tabDay[activeTab.value] = (tabDay[activeTab.value] ?? 0) + ms
     if (state.value.streak.lastActive !== today) bumpStreak()
     checkGoal('focus')
     persist()
@@ -430,7 +441,7 @@ if (typeof window !== 'undefined') {
     w.cubeApplyBackfill = (solves: SolveRecord[]) => backfillFromSolves(solves)
 }
 
-export { addFocus }
+export { addFocus, setActiveTab }
 
 export function useGamification() {
     ensureDaily()
@@ -490,6 +501,56 @@ export function useGamification() {
     })
     const todayFocusMs = computed(() => state.value.focusByDay[dayKey()] ?? 0)
 
+    // --- Lifetime time accounting (across all recorded days) --------------
+    const TAB_LABELS: Record<string, string> = {
+        TimerTab: 'Timer',
+        StatsTab: 'Stats',
+        AlgorithmsTab: 'Algorithms',
+        DrillsTab: 'Drills',
+        QuestsTab: 'Quests',
+    }
+
+    // Total focused wall-clock time per tab/view, biggest first.
+    const focusByTab = computed(() => {
+        const totals: Record<string, number> = {}
+        for (const day of Object.values(state.value.focusByTabDay)) {
+            for (const [tab, ms] of Object.entries(day)) {
+                totals[tab] = (totals[tab] ?? 0) + (ms ?? 0)
+            }
+        }
+        return Object.entries(totals)
+            .map(([tab, ms]) => ({ tab, label: TAB_LABELS[tab] ?? tab, ms }))
+            .sort((a, b) => b.ms - a.ms)
+    })
+
+    const focusTotalMs = computed(() =>
+        Object.values(state.value.focusByDay).reduce((a, ms) => a + (ms ?? 0), 0),
+    )
+
+    // Total recorded solving time (sum of solve durations) across all days.
+    const solveTimeTotalMs = computed(() =>
+        Object.values(state.value.solveByDay).reduce(
+            (a, day) => a + Object.values(day).reduce((b, ms) => b + (ms ?? 0), 0),
+            0,
+        ),
+    )
+
+    // Lifetime active-practice time per activity category (Solving, Alg, ...).
+    const timeByCategoryTotal = computed(() => {
+        const totals: Partial<Record<ActivityType, number>> = {}
+        for (const day of Object.values(state.value.timeByDay)) {
+            for (const [cat, ms] of Object.entries(day)) {
+                totals[cat as ActivityType] = (totals[cat as ActivityType] ?? 0) + (ms ?? 0)
+            }
+        }
+        return TIME_CATEGORIES.map((c) => ({
+            id: c.id,
+            label: c.label,
+            icon: c.icon,
+            ms: c.id === 'solve' ? solveTimeTotalMs.value : totals[c.id] ?? 0,
+        })).sort((a, b) => b.ms - a.ms)
+    })
+
     // --- tracking API (called from the various trainers) ------------------
     const trackSolve = (timeMs: number, penalty: 'OK' | '+2' | 'DNF', cube?: string) => {
         const e: GameEvent = { type: 'solve', timeMs, penalty, cube }
@@ -534,6 +595,11 @@ export function useGamification() {
         solveByCubeToday,
         todayTotalMs,
         todayFocusMs,
+        focusByTab,
+        focusTotalMs,
+        solveTimeTotalMs,
+        timeByCategoryTotal,
+        setActiveTab,
         toasts,
         dismissToast,
         trackSolve,

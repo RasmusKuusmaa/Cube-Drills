@@ -33,10 +33,13 @@ def ensure_schema() -> None:
     older ones."""
     if not settings.database_url.startswith("sqlite"):
         return
+    # column name -> SQLite type for columns added after initial seeding.
+    wanted = {"phases": "TEXT", "inspection_ms": "INTEGER"}
     with engine.begin() as conn:
         rows = conn.exec_driver_sql("PRAGMA table_info(solves)").fetchall()
         if not rows:
             return  # table doesn't exist yet; nothing to migrate
         columns = {row[1] for row in rows}
-        if "phases" not in columns:
-            conn.exec_driver_sql("ALTER TABLE solves ADD COLUMN phases TEXT")
+        for name, col_type in wanted.items():
+            if name not in columns:
+                conn.exec_driver_sql(f"ALTER TABLE solves ADD COLUMN {name} {col_type}")

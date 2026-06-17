@@ -38,6 +38,8 @@ class SolveCreateIn(BaseModel):
     penalty: Penalty | None = None
     # Cumulative phase split times (ms) for multi-phase solves; optional.
     phases: list[int] | None = None
+    # Inspection time (ms) used before the solve; optional.
+    inspectionMs: int | None = Field(default=None, ge=0)
 
 
 class SolveUpdateIn(BaseModel):

@@ -9,6 +9,7 @@ type Solve = {
     penalty?: 'OK' | '+2' | 'DNF'
     comment?: string | null
     phases?: number[] | null
+    inspectionMs?: number | null
 }
 
 type Session = {
