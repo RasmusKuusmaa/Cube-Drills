@@ -45,3 +45,35 @@ class SolveCreateIn(BaseModel):
 class SolveUpdateIn(BaseModel):
     penalty: Penalty | None = None
     comment: str | None = None
+
+
+TaskKind = Literal["time", "count", "check"]
+TaskSource = Literal["manual", "focus", "solve", "alg", "cross", "inspection", "memo"]
+
+
+class RoutineTaskIn(BaseModel):
+    id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    icon: str | None = None
+    kind: TaskKind
+    source: TaskSource
+    cube: str | None = None
+    target: int = Field(default=0, ge=0)
+
+
+class RoutineUpdateIn(BaseModel):
+    tasks: list[RoutineTaskIn]
+
+
+class DailyEntryIn(BaseModel):
+    label: str
+    kind: TaskKind
+    target: int = Field(default=0, ge=0)
+    value: int = Field(default=0, ge=0)
+    done: bool = False
+
+
+class DailyLogIn(BaseModel):
+    notes: str | None = None
+    rating: int | None = Field(default=None, ge=1, le=5)
+    entries: dict[str, DailyEntryIn] = Field(default_factory=dict)

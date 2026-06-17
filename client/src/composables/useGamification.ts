@@ -263,6 +263,21 @@ const addFocus = (ms: number) => {
     persist()
 }
 
+// Today's auto-tracked value (ms) for a routine task source. 'focus' reads
+// wall-clock focus time; 'solve' reads solving time (optionally for one cube);
+// any activity category reads its practice time. Used by the Routine tab to
+// drive live progress without duplicating the per-day bookkeeping here.
+const metricTodayValue = (source: string, cube?: string | null): number => {
+    const today = dayKey()
+    if (source === 'focus') return state.value.focusByDay[today] ?? 0
+    if (source === 'solve') {
+        const day = state.value.solveByDay[today] ?? {}
+        if (cube) return day[cube] ?? 0
+        return Object.values(day).reduce((a, ms) => a + (ms ?? 0), 0)
+    }
+    return state.value.timeByDay[today]?.[source as ActivityType] ?? 0
+}
+
 const snapshot = (): AchievementSnapshot => ({
     solves: state.value.totals.solves,
     crossReps: state.value.totals.cross,
@@ -441,7 +456,7 @@ if (typeof window !== 'undefined') {
     w.cubeApplyBackfill = (solves: SolveRecord[]) => backfillFromSolves(solves)
 }
 
-export { addFocus, setActiveTab }
+export { addFocus, setActiveTab, metricTodayValue }
 
 export function useGamification() {
     ensureDaily()
@@ -508,6 +523,7 @@ export function useGamification() {
         AlgorithmsTab: 'Algorithms',
         DrillsTab: 'Drills',
         QuestsTab: 'Quests',
+        RoutineTab: 'Routine',
     }
 
     // Total focused wall-clock time per tab/view, biggest first.

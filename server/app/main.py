@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 from .config import settings
 from .database import ensure_schema
-from .routers import auth, sessions, solves
+from .routers import auth, routine, sessions, solves
 
 
 @asynccontextmanager
@@ -38,6 +38,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 app.include_router(auth.router, prefix="/api")
 app.include_router(sessions.router, prefix="/api")
 app.include_router(solves.router, prefix="/api")
+app.include_router(routine.router, prefix="/api")
 
 
 @app.get("/")

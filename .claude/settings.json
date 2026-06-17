@@ -31,7 +31,8 @@
       "Bash(node scripts/backfill.mjs)",
       "Bash(echo \"exit=$?\")",
       "Bash(curl -s \"http://localhost:5173/src/components/StatsTab.vue\" -o /tmp/statstab.js)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(node -e \"const s=require\\('./package.json'\\).scripts; console.log\\(JSON.stringify\\(s,null,2\\)\\)\")"
     ],
     "additionalDirectories": [
       "\\tmp"

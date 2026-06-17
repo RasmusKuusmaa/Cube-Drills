@@ -30,6 +30,7 @@ import TimerTab from '../components/TimerTab.vue';
 import StatsTab from '../components/StatsTab.vue';
 import AlgorithmsTab from '../components/AlgorithmsTab.vue';
 import QuestsTab from '../components/QuestsTab.vue';
+import RoutineTab from '../components/RoutineTab.vue';
 import GameToasts from '../components/GameToasts.vue';
 import { useFocusTracker } from '../composables/useFocusTracker';
 import { setActiveTab } from '../composables/useGamification';
@@ -41,6 +42,7 @@ const tabs = [
   { id: 'StatsTab', label: 'Stats' },
   { id: 'AlgorithmsTab', label: 'Algorithms' },
   { id: 'DrillsTab', label: 'Drills' },
+  { id: 'RoutineTab', label: 'Routine' },
   { id: 'QuestsTab', label: 'Quests' },
 ];
 
@@ -60,6 +62,8 @@ const currentTabComponent = computed(() => {
       return AlgorithmsTab;
     case 'QuestsTab':
       return QuestsTab;
+    case 'RoutineTab':
+      return RoutineTab;
     case 'DrillsTab':
     default:
       return DrillsTab;
