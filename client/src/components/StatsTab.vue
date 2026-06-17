@@ -20,7 +20,49 @@
     </div>
 
     <template v-else>
+      <!-- Today -->
+      <section class="today-section">
+        <div class="section-head">
+          <h2>Today</h2>
+          <span class="section-sub">{{ todayDateLabel }}</span>
+        </div>
+        <div v-if="todayCounts.total === 0" class="empty subtle">
+          No solves yet today.
+        </div>
+        <div v-else class="cards">
+          <div class="metric metric-accent">
+            <span class="metric-label">Solves today</span>
+            <span class="metric-value">{{ todayCounts.total }}</span>
+            <span class="metric-sub">{{ todayCounts.completed }} completed</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Best single</span>
+            <span class="metric-value">{{ fmt(todayBest) }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Average</span>
+            <span class="metric-value">{{ fmt(todayMean) }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Best ao5</span>
+            <span class="metric-value">{{ fmt(todayAverageBest('ao5')) }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Best ao12</span>
+            <span class="metric-value">{{ fmt(todayAverageBest('ao12')) }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Time practiced</span>
+            <span class="metric-value">{{ formatDuration(todayPracticeMs) }}</span>
+          </div>
+        </div>
+      </section>
+
       <!-- Headline numbers -->
+      <div class="section-head">
+        <h2>Overall</h2>
+        <span class="section-sub">{{ scopeLabel }}</span>
+      </div>
       <section class="cards">
         <div class="metric metric-accent">
           <span class="metric-label">Best single</span>
@@ -309,6 +351,35 @@ const {
   improvement,
 } = useStats(scopedSolves)
 
+// --- Today (within the current scope) -------------------------------------
+const isToday = (iso: string) => {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return false
+  const now = new Date()
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  )
+}
+
+const todaySolves = computed<Solve[]>(() => scopedSolves.value.filter((s) => isToday(s.date)))
+
+const {
+  counts: todayCounts,
+  best: todayBest,
+  meanAll: todayMean,
+  totalPracticeMs: todayPracticeMs,
+  averages: todayAverages,
+} = useStats(todaySolves)
+
+const todayAverageBest = (label: string) =>
+  todayAverages.value.find((a) => a.label === label)?.best ?? null
+
+const todayDateLabel = computed(() =>
+  new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' }),
+)
+
 const fmt = (ms: number | null) => formatMs(ms)
 const percent = (ratio: number) => (ratio * 100).toFixed(1) + '%'
 const formatDate = (iso: string) =>
@@ -494,6 +565,34 @@ const pbPoints = computed(() => {
   background: #f9fafb;
   border: 1px dashed #d1d5db;
   border-radius: 12px;
+}
+
+.empty.subtle {
+  padding: 20px;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.today-section {
+  margin-bottom: 20px;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 10px;
+}
+
+.section-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.section-sub {
+  color: #6b7280;
+  font-size: 0.85rem;
 }
 
 .cards {

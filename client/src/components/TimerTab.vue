@@ -14,6 +14,31 @@
       </div>
       <button @click="handleNewSession">+ New Session</button>
 
+      <div class="today-card">
+        <div class="today-head">
+          <span>Today</span>
+          <span class="today-count">{{ todayCount }} solve{{ todayCount === 1 ? '' : 's' }}</span>
+        </div>
+        <div class="today-grid">
+          <div class="today-metric">
+            <span class="today-val">{{ todayMean }}</span>
+            <span class="today-lbl">average</span>
+          </div>
+          <div class="today-metric">
+            <span class="today-val">{{ todayBest }}</span>
+            <span class="today-lbl">best</span>
+          </div>
+          <div class="today-metric">
+            <span class="today-val">{{ todayAo5 }}</span>
+            <span class="today-lbl">ao5</span>
+          </div>
+          <div class="today-metric">
+            <span class="today-val">{{ todayBestAo5 }}</span>
+            <span class="today-lbl">best ao5</span>
+          </div>
+        </div>
+      </div>
+
       <div class="stats-box">
         <div class="stat-card">
           <div class="stat-card-title">Current</div>
@@ -91,7 +116,7 @@ import { useGamification } from '@/composables/useGamification'
 import NewSessionModal from './NewSessionModal.vue'
 import EditSessionModal from './EditSessionModal.vue'
 import SolveModal from './SolveModal.vue'
-import { formatSolve, type Penalty } from '@/utils/solves'
+import { effectiveTime, formatMs, formatSolve, type Penalty } from '@/utils/solves'
 
 type Session = {
   id: string
@@ -157,6 +182,31 @@ const {
 
 const reversedAo5 = computed(() => [...rollingAo5Chrono.value].reverse())
 const reversedAo12 = computed(() => [...rollingAo12Chrono.value].reverse())
+
+const isToday = (iso: string) => {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return false
+  const now = new Date()
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  )
+}
+
+const todaySolves = computed(() => solves.value.filter((s) => isToday(s.date)))
+const todayCount = computed(() => todaySolves.value.length)
+const todayMean = computed(() => {
+  const finite = todaySolves.value.map(effectiveTime).filter((t) => Number.isFinite(t))
+  if (finite.length === 0) return '--'
+  return formatMs(finite.reduce((acc, t) => acc + t, 0) / finite.length)
+})
+
+const {
+  bestTime: todayBest,
+  ao5: todayAo5,
+  bestAo5: todayBestAo5,
+} = useAverages(todaySolves)
 
 const showModal = ref(false)
 const editingSession = ref<Session | null>(null)
@@ -251,12 +301,12 @@ onUnmounted(() => {
 
 <style scoped>
 .timer-container {
-  position: fixed;
   display: grid;
-  grid-template-columns: 20rem 1fr;
+  grid-template-columns: minmax(13rem, 20rem) 1fr;
   overflow: hidden;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
 }
 
 .solves {
@@ -264,7 +314,7 @@ onUnmounted(() => {
   padding: 10px;
   display: flex;
   flex-direction: column;
-  height: 75vh;
+  height: 100%;
   min-height: 0;
   overflow: hidden;
 }
@@ -319,9 +369,57 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
-.stats-box {
+.today-card {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.today-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 8px;
+}
+
+.today-count {
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: #2563eb;
+}
+
+.today-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+}
+
+.today-metric {
+  display: flex;
+  flex-direction: column;
+}
+
+.today-val {
+  font-family: monospace;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.today-lbl {
+  font-size: 0.7rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.stats-box {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   gap: 10px;
   margin-bottom: 10px;
 }
@@ -414,7 +512,8 @@ onUnmounted(() => {
 
 .main {
   display: grid;
-  grid-template-rows: 50px 50px 1fr;
+  grid-template-rows: auto auto 1fr;
+  gap: 10px;
   padding: 10px;
   min-height: 0;
   overflow: hidden;
@@ -427,16 +526,35 @@ onUnmounted(() => {
   align-items: center;
 }
 
+.scramble-container {
+  font-size: clamp(0.85rem, 1.8vw, 1.25rem);
+  text-align: center;
+  line-height: 1.4;
+  word-break: break-word;
+  max-width: 50ch;
+  margin: 0 auto;
+}
+
 .timer-area {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 120px;
+  justify-content: center;
+  gap: 12px;
+  min-height: 0;
 }
 
 .timer {
-  font-size: 64px;
+  font-size: clamp(3rem, 11vw, 6rem);
+  font-variant-numeric: tabular-nums;
   user-select: none;
+}
+
+.averages {
+  display: flex;
+  gap: 18px;
+  font-size: clamp(0.85rem, 1.6vw, 1.05rem);
+  color: #555;
 }
 
 .timer.ready {
@@ -449,5 +567,29 @@ onUnmounted(() => {
 
 .timer.running {
   color: black;
+}
+
+@media (max-width: 800px) {
+  .timer-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    height: auto;
+    min-height: 100%;
+    overflow-y: auto;
+  }
+
+  .solves {
+    height: auto;
+    border-right: none;
+    border-bottom: 2px solid black;
+  }
+
+  .solves-list {
+    max-height: 38vh;
+  }
+
+  .main {
+    min-height: 55vh;
+  }
 }
 </style>
